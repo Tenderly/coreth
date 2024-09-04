@@ -32,6 +32,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -91,13 +92,99 @@ func (abi ABI) Pack(name string, args ...interface{}) ([]byte, error) {
 	return append(method.ID, arguments...), nil
 }
 
+// PackEvent packs the given event name and arguments to conform the ABI.
+// Returns the topics for the event including the event signature (if non-anonymous event) and
+// hashes derived from indexed arguments and the packed data of non-indexed args according to
+// the event ABI specification.
+// The order of arguments must match the order of the event definition.
+// https://docs.soliditylang.org/en/v0.8.17/abi-spec.html#indexed-event-encoding.
+// Note: PackEvent does not support array (fixed or dynamic-size) or struct types.
+func (abi ABI) PackEvent(name string, args ...interface{}) ([]common.Hash, []byte, error) {
+	event, exist := abi.Events[name]
+	if !exist {
+		return nil, nil, fmt.Errorf("event '%s' not found", name)
+	}
+	if len(args) != len(event.Inputs) {
+		return nil, nil, fmt.Errorf("event '%s' unexpected number of inputs %d", name, len(args))
+	}
+
+	var (
+		nonIndexedInputs = make([]interface{}, 0)
+		indexedInputs    = make([]interface{}, 0)
+		nonIndexedArgs   Arguments
+		indexedArgs      Arguments
+	)
+
+	for i, arg := range event.Inputs {
+		if arg.Indexed {
+			indexedArgs = append(indexedArgs, arg)
+			indexedInputs = append(indexedInputs, args[i])
+		} else {
+			nonIndexedArgs = append(nonIndexedArgs, arg)
+			nonIndexedInputs = append(nonIndexedInputs, args[i])
+		}
+	}
+
+	packedArguments, err := nonIndexedArgs.Pack(nonIndexedInputs...)
+	if err != nil {
+		return nil, nil, err
+	}
+	topics := make([]common.Hash, 0, len(indexedArgs)+1)
+	if !event.Anonymous {
+		topics = append(topics, event.ID)
+	}
+	indexedTopics, err := PackTopics(indexedInputs)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return append(topics, indexedTopics...), packedArguments, nil
+}
+
+// PackOutput packs the given [args] as the output of given method [name] to conform the ABI.
+// This does not include method ID.
+func (abi ABI) PackOutput(name string, args ...interface{}) ([]byte, error) {
+	// Fetch the ABI of the requested method
+	method, exist := abi.Methods[name]
+	if !exist {
+		return nil, fmt.Errorf("method '%s' not found", name)
+	}
+	arguments, err := method.Outputs.Pack(args...)
+	if err != nil {
+		return nil, err
+	}
+	return arguments, nil
+}
+
+// getInputs gets input arguments of the given [name] method.
+// useStrictMode indicates whether to check the input data length strictly.
+func (abi ABI) getInputs(name string, data []byte, useStrictMode bool) (Arguments, error) {
+	// since there can't be naming collisions with contracts and events,
+	// we need to decide whether we're calling a method or an event
+	var args Arguments
+	if method, ok := abi.Methods[name]; ok {
+		if useStrictMode && len(data)%32 != 0 {
+			return nil, fmt.Errorf("abi: improperly formatted input: %s - Bytes: [%+v]", string(data), data)
+		}
+		args = method.Inputs
+	}
+	if event, ok := abi.Events[name]; ok {
+		args = event.Inputs
+	}
+	if args == nil {
+		return nil, fmt.Errorf("abi: could not locate named method or event: %s", name)
+	}
+	return args, nil
+}
+
+// getArguments gets output arguments of the given [name] method.
 func (abi ABI) getArguments(name string, data []byte) (Arguments, error) {
 	// since there can't be naming collisions with contracts and events,
 	// we need to decide whether we're calling a method or an event
 	var args Arguments
 	if method, ok := abi.Methods[name]; ok {
 		if len(data)%32 != 0 {
-			return nil, fmt.Errorf("abi: improperly formatted output: %s - Bytes: [%+v]", string(data), data)
+			return nil, fmt.Errorf("abi: improperly formatted output: %q - Bytes: %+v", data, data)
 		}
 		args = method.Outputs
 	}
@@ -105,9 +192,21 @@ func (abi ABI) getArguments(name string, data []byte) (Arguments, error) {
 		args = event.Inputs
 	}
 	if args == nil {
-		return nil, errors.New("abi: could not locate named method or event")
+		return nil, fmt.Errorf("abi: could not locate named method or event: %s", name)
 	}
 	return args, nil
+}
+
+// UnpackInput unpacks the input according to the ABI specification.
+// useStrictMode indicates whether to check the input data length strictly.
+// By default it was set to true. In order to support the general EVM tool compatibility this
+// should be set to false. This transition (true -> false) should be done with a network upgrade.
+func (abi ABI) UnpackInput(name string, data []byte, useStrictMode bool) ([]interface{}, error) {
+	args, err := abi.getInputs(name, data, useStrictMode)
+	if err != nil {
+		return nil, err
+	}
+	return args.Unpack(data)
 }
 
 // Unpack unpacks the output according to the abi specification.
@@ -117,6 +216,24 @@ func (abi ABI) Unpack(name string, data []byte) ([]interface{}, error) {
 		return nil, err
 	}
 	return args.Unpack(data)
+}
+
+// UnpackInputIntoInterface unpacks the input in v according to the ABI specification.
+// It performs an additional copy. Please only use, if you want to unpack into a
+// structure that does not strictly conform to the ABI structure (e.g. has additional arguments)
+// useStrictMode indicates whether to check the input data length strictly.
+// By default it was set to true. In order to support the general EVM tool compatibility this
+// should be set to false. This transition (true -> false) should be done with a network upgrade.
+func (abi ABI) UnpackInputIntoInterface(v interface{}, name string, data []byte, useStrictMode bool) error {
+	args, err := abi.getInputs(name, data, useStrictMode)
+	if err != nil {
+		return err
+	}
+	unpacked, err := args.Unpack(data)
+	if err != nil {
+		return err
+	}
+	return args.Copy(v, unpacked)
 }
 
 // UnpackIntoInterface unpacks the output in v according to the abi specification.
@@ -174,7 +291,7 @@ func (abi *ABI) UnmarshalJSON(data []byte) error {
 		case "constructor":
 			abi.Constructor = NewMethod("", "", Constructor, field.StateMutability, field.Constant, field.Payable, field.Inputs, nil)
 		case "function":
-			name := overloadedName(field.Name, func(s string) bool { _, ok := abi.Methods[s]; return ok })
+			name := ResolveNameConflict(field.Name, func(s string) bool { _, ok := abi.Methods[s]; return ok })
 			abi.Methods[name] = NewMethod(name, field.Name, Function, field.StateMutability, field.Constant, field.Payable, field.Inputs, field.Outputs)
 		case "fallback":
 			// New introduced function type in v0.6.0, check more detail
@@ -194,9 +311,11 @@ func (abi *ABI) UnmarshalJSON(data []byte) error {
 			}
 			abi.Receive = NewMethod("", "", Receive, field.StateMutability, field.Constant, field.Payable, nil, nil)
 		case "event":
-			name := overloadedName(field.Name, func(s string) bool { _, ok := abi.Events[s]; return ok })
+			name := ResolveNameConflict(field.Name, func(s string) bool { _, ok := abi.Events[s]; return ok })
 			abi.Events[name] = NewEvent(name, field.Name, field.Anonymous, field.Inputs)
 		case "error":
+			// Errors cannot be overloaded or overridden but are inherited,
+			// no need to resolve the name conflict here.
 			abi.Errors[field.Name] = NewError(field.Name, field.Inputs)
 		default:
 			return fmt.Errorf("abi: could not recognize type %v of field %v", field.Type, field.Name)
@@ -230,6 +349,17 @@ func (abi *ABI) EventByID(topic common.Hash) (*Event, error) {
 	return nil, fmt.Errorf("no event with id: %#x", topic.Hex())
 }
 
+// ErrorByID looks up an error by the 4-byte id,
+// returns nil if none found.
+func (abi *ABI) ErrorByID(sigdata [4]byte) (*Error, error) {
+	for _, errABI := range abi.Errors {
+		if bytes.Equal(errABI.ID[:4], sigdata[:]) {
+			return &errABI, nil
+		}
+	}
+	return nil, fmt.Errorf("no error with id: %#x", sigdata[:])
+}
+
 // HasFallback returns an indicator whether a fallback function is included.
 func (abi *ABI) HasFallback() bool {
 	return abi.Fallback.Type == Fallback
@@ -243,38 +373,65 @@ func (abi *ABI) HasReceive() bool {
 // revertSelector is a special function selector for revert reason unpacking.
 var revertSelector = crypto.Keccak256([]byte("Error(string)"))[:4]
 
+// panicSelector is a special function selector for panic reason unpacking.
+var panicSelector = crypto.Keccak256([]byte("Panic(uint256)"))[:4]
+
+// panicReasons map is for readable panic codes
+// see this linkage for the details
+// https://docs.soliditylang.org/en/v0.8.21/control-structures.html#panic-via-assert-and-error-via-require
+// the reason string list is copied from ether.js
+// https://github.com/ethers-io/ethers.js/blob/fa3a883ff7c88611ce766f58bdd4b8ac90814470/src.ts/abi/interface.ts#L207-L218
+var panicReasons = map[uint64]string{
+	0x00: "generic panic",
+	0x01: "assert(false)",
+	0x11: "arithmetic underflow or overflow",
+	0x12: "division or modulo by zero",
+	0x21: "enum overflow",
+	0x22: "invalid encoded storage byte array accessed",
+	0x31: "out-of-bounds array access; popping on an empty array",
+	0x32: "out-of-bounds access of an array or bytesN",
+	0x41: "out of memory",
+	0x51: "uninitialized function",
+}
+
 // UnpackRevert resolves the abi-encoded revert reason. According to the solidity
 // spec https://solidity.readthedocs.io/en/latest/control-structures.html#revert,
-// the provided revert reason is abi-encoded as if it were a call to a function
-// `Error(string)`. So it's a special tool for it.
+// the provided revert reason is abi-encoded as if it were a call to function
+// `Error(string)` or `Panic(uint256)`. So it's a special tool for it.
 func UnpackRevert(data []byte) (string, error) {
 	if len(data) < 4 {
 		return "", errors.New("invalid data for unpacking")
 	}
-	if !bytes.Equal(data[:4], revertSelector) {
+	switch {
+	case bytes.Equal(data[:4], revertSelector):
+		typ, err := NewType("string", "", nil)
+		if err != nil {
+			return "", err
+		}
+		unpacked, err := (Arguments{{Type: typ}}).Unpack(data[4:])
+		if err != nil {
+			return "", err
+		}
+		return unpacked[0].(string), nil
+	case bytes.Equal(data[:4], panicSelector):
+		typ, err := NewType("uint256", "", nil)
+		if err != nil {
+			return "", err
+		}
+		unpacked, err := (Arguments{{Type: typ}}).Unpack(data[4:])
+		if err != nil {
+			return "", err
+		}
+		pCode := unpacked[0].(*big.Int)
+		// uint64 safety check for future
+		// but the code is not bigger than MAX(uint64) now
+		if pCode.IsUint64() {
+			if reason, ok := panicReasons[pCode.Uint64()]; ok {
+				return reason, nil
+			}
+		}
+		return fmt.Sprintf("unknown panic code: %#x", pCode), nil
+	default:
 		return "", errors.New("invalid data for unpacking")
 	}
-	typ, _ := NewType("string", "", nil)
-	unpacked, err := (Arguments{{Type: typ}}).Unpack(data[4:])
-	if err != nil {
-		return "", err
-	}
-	return unpacked[0].(string), nil
-}
-
-// overloadedName returns the next available name for a given thing.
-// Needed since solidity allows for overloading.
-//
-// e.g. if the abi contains Methods send, send1
-// overloadedName would return send2 for input send.
-//
-// overloadedName works for methods, events and errors.
-func overloadedName(rawName string, isAvail func(string) bool) string {
-	name := rawName
-	ok := isAvail(name)
-	for idx := 0; ok; idx++ {
-		name = fmt.Sprintf("%s%d", rawName, idx)
-		ok = isAvail(name)
-	}
-	return name
 }

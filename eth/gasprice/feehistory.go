@@ -31,7 +31,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"sort"
+	"slices"
 
 	"github.com/tenderly/coreth/core/types"
 	"github.com/tenderly/coreth/rpc"
@@ -46,26 +46,16 @@ var (
 )
 
 // txGasAndReward is sorted in ascending order based on reward
-type (
-	txGasAndReward struct {
-		gasUsed uint64
-		reward  *big.Int
-	}
-	sortGasAndReward []txGasAndReward
-	slimBlock        struct {
-		GasUsed  uint64
-		GasLimit uint64
-		BaseFee  *big.Int
-		Txs      []txGasAndReward
-	}
-)
-
-func (s sortGasAndReward) Len() int { return len(s) }
-func (s sortGasAndReward) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
+type txGasAndReward struct {
+	gasUsed uint64
+	reward  *big.Int
 }
-func (s sortGasAndReward) Less(i, j int) bool {
-	return s[i].reward.Cmp(s[j].reward) < 0
+
+type slimBlock struct {
+	GasUsed  uint64
+	GasLimit uint64
+	BaseFee  *big.Int
+	Txs      []txGasAndReward
 }
 
 // processBlock prepares a [slimBlock] from a retrieved block and list of
@@ -77,12 +67,14 @@ func processBlock(block *types.Block, receipts types.Receipts) *slimBlock {
 	}
 	sb.GasUsed = block.GasUsed()
 	sb.GasLimit = block.GasLimit()
-	sorter := make(sortGasAndReward, len(block.Transactions()))
+	sorter := make([]txGasAndReward, len(block.Transactions()))
 	for i, tx := range block.Transactions() {
 		reward, _ := tx.EffectiveGasTip(sb.BaseFee)
 		sorter[i] = txGasAndReward{gasUsed: receipts[i].GasUsed, reward: reward}
 	}
-	sort.Sort(sorter)
+	slices.SortStableFunc(sorter, func(a, b txGasAndReward) int {
+		return a.reward.Cmp(b.reward)
+	})
 	sb.Txs = sorter
 	return &sb
 }
@@ -124,7 +116,7 @@ func (sb *slimBlock) processPercentiles(percentiles []float64) ([]*big.Int, *big
 // enforcing backend specific limitations.
 // Note: an error is only returned if retrieving the head header has failed. If there are no
 // retrievable blocks in the specified range then zero block count is returned with no error.
-func (oracle *Oracle) resolveBlockRange(ctx context.Context, lastBlock rpc.BlockNumber, blocks int) (uint64, int, error) {
+func (oracle *Oracle) resolveBlockRange(ctx context.Context, lastBlock rpc.BlockNumber, blocks uint64) (uint64, uint64, error) {
 	// Query either pending block or head header and set headBlock
 	if lastBlock == rpc.PendingBlockNumber {
 		// Pending block not supported by backend, process until latest block
@@ -149,12 +141,12 @@ func (oracle *Oracle) resolveBlockRange(ctx context.Context, lastBlock rpc.Block
 	}
 	// Ensure not trying to retrieve before genesis
 	if rpc.BlockNumber(blocks) > lastBlock+1 {
-		blocks = int(lastBlock + 1)
+		blocks = uint64(lastBlock + 1)
 	}
 	// Truncate blocks range if extending past [oracle.maxBlockHistory]
 	oldestQueriedIndex := lastBlock - rpc.BlockNumber(blocks) + 1
 	if queryDepth := lastAcceptedBlock - oldestQueriedIndex; queryDepth > maxQueryDepth {
-		overage := int(queryDepth - maxQueryDepth)
+		overage := uint64(queryDepth - maxQueryDepth)
 		blocks -= overage
 	}
 	// It is not possible that [blocks] could be <= 0 after
@@ -170,13 +162,14 @@ func (oracle *Oracle) resolveBlockRange(ctx context.Context, lastBlock rpc.Block
 // actually processed range is returned to avoid ambiguity when parts of the requested range
 // are not available or when the head has changed during processing this request.
 // Three arrays are returned based on the processed blocks:
-// - reward: the requested percentiles of effective priority fees per gas of transactions in each
-//   block, sorted in ascending order and weighted by gas used.
-// - baseFee: base fee per gas in the given block
-// - gasUsedRatio: gasUsed/gasLimit in the given block
+//   - reward: the requested percentiles of effective priority fees per gas of transactions in each
+//     block, sorted in ascending order and weighted by gas used.
+//   - baseFee: base fee per gas in the given block
+//   - gasUsedRatio: gasUsed/gasLimit in the given block
+//
 // Note: baseFee includes the next block after the newest of the returned range, because this
 // value can be derived from the newest block.
-func (oracle *Oracle) FeeHistory(ctx context.Context, blocks int, unresolvedLastBlock rpc.BlockNumber, rewardPercentiles []float64) (*big.Int, [][]*big.Int, []*big.Int, []float64, error) {
+func (oracle *Oracle) FeeHistory(ctx context.Context, blocks uint64, unresolvedLastBlock rpc.BlockNumber, rewardPercentiles []float64) (*big.Int, [][]*big.Int, []*big.Int, []float64, error) {
 	if blocks < 1 {
 		return common.Big0, nil, nil, nil, nil // returning with no data and no error means there are no retrievable blocks
 	}
@@ -196,7 +189,7 @@ func (oracle *Oracle) FeeHistory(ctx context.Context, blocks int, unresolvedLast
 	if err != nil || blocks == 0 {
 		return common.Big0, nil, nil, nil, err
 	}
-	oldestBlock := lastBlock + 1 - uint64(blocks)
+	oldestBlock := lastBlock + 1 - blocks
 
 	var (
 		reward       = make([][]*big.Int, blocks)
@@ -205,16 +198,16 @@ func (oracle *Oracle) FeeHistory(ctx context.Context, blocks int, unresolvedLast
 		firstMissing = blocks
 	)
 
-	for blockNumber := oldestBlock; blockNumber < oldestBlock+uint64(blocks); blockNumber++ {
+	for blockNumber := oldestBlock; blockNumber < oldestBlock+blocks; blockNumber++ {
 		// Check if the context has errored
 		if err := ctx.Err(); err != nil {
 			return common.Big0, nil, nil, nil, err
 		}
 
-		i := int(blockNumber - oldestBlock)
+		i := blockNumber - oldestBlock
 		var sb *slimBlock
-		if sbRaw, ok := oracle.historyCache.Get(blockNumber); ok {
-			sb = sbRaw.(*slimBlock)
+		if sbCache, ok := oracle.historyCache.Get(blockNumber); ok {
+			sb = sbCache
 		} else {
 			block, err := oracle.backend.BlockByNumber(ctx, rpc.BlockNumber(blockNumber))
 			if err != nil {

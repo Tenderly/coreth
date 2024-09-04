@@ -31,10 +31,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ava-labs/coreth/core/rawdb"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/tenderly/coreth/core/rawdb"
-	"github.com/tenderly/coreth/ethdb"
 )
 
 // CheckDanglingStorage iterates the snap storage data, and verifies that all

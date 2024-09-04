@@ -43,7 +43,12 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 )
 
+const basefeeWiggleMultiplier = 2
+
 var (
+	errNoEventSignature       = errors.New("no event signature")
+	errEventSignatureMismatch = errors.New("event signature mismatch")
+
 	ErrNilAssetAmount            = errors.New("cannot specify nil asset amount for native asset call")
 	errNativeAssetDeployContract = errors.New("cannot specify native asset params while deploying a contract")
 )
@@ -57,6 +62,7 @@ type CallOpts struct {
 	Accepted    bool            // Whether to operate on the accepted state or the last known one
 	From        common.Address  // Optional the sender address, otherwise the first account is used
 	BlockNumber *big.Int        // Optional the block number on which the call should be performed
+	BlockHash   common.Hash     // Optional the block hash on which the call should be performed
 	Context     context.Context // Network context to support cancellation and timeouts (nil = no timeout)
 }
 
@@ -201,9 +207,29 @@ func (c *BoundContract) Call(opts *CallOpts, results *[]interface{}, method stri
 			return ErrNoAcceptedState
 		}
 		output, err = pb.AcceptedCallContract(ctx, msg)
-		if err == nil && len(output) == 0 {
+		if err != nil {
+			return err
+		}
+		if len(output) == 0 {
 			// Make sure we have a contract to operate on, and bail out otherwise.
 			if code, err = pb.AcceptedCodeAt(ctx, c.address); err != nil {
+				return err
+			} else if len(code) == 0 {
+				return ErrNoCode
+			}
+		}
+	} else if opts.BlockHash != (common.Hash{}) {
+		bh, ok := c.caller.(BlockHashContractCaller)
+		if !ok {
+			return ErrNoBlockHashState
+		}
+		output, err = bh.CallContractAtHash(ctx, msg, opts.BlockHash)
+		if err != nil {
+			return err
+		}
+		if len(output) == 0 {
+			// Make sure we have a contract to operate on, and bail out otherwise.
+			if code, err = bh.CodeAtHash(ctx, c.address, opts.BlockHash); err != nil {
 				return err
 			} else if len(code) == 0 {
 				return ErrNoCode
@@ -240,7 +266,7 @@ func (c *BoundContract) Transact(opts *TransactOpts, method string, params ...in
 	if err != nil {
 		return nil, err
 	}
-	// todo(rjl493456442) check the method is payable or not,
+	// todo(rjl493456442) check whether the method is payable or not,
 	// reject invalid transaction at the first place
 	return c.transact(opts, &c.address, input)
 }
@@ -248,7 +274,7 @@ func (c *BoundContract) Transact(opts *TransactOpts, method string, params ...in
 // RawTransact initiates a transaction with the given raw calldata as the input.
 // It's usually used to initiate transactions for invoking **Fallback** function.
 func (c *BoundContract) RawTransact(opts *TransactOpts, calldata []byte) (*types.Transaction, error) {
-	// todo(rjl493456442) check the method is payable or not,
+	// todo(rjl493456442) check whether the method is payable or not,
 	// reject invalid transaction at the first place
 	return c.transact(opts, &c.address, calldata)
 }
@@ -313,7 +339,7 @@ func (c *BoundContract) createDynamicTx(opts *TransactOpts, contract *common.Add
 	if gasFeeCap == nil {
 		gasFeeCap = new(big.Int).Add(
 			gasTipCap,
-			new(big.Int).Mul(head.BaseFee, big.NewInt(2)),
+			new(big.Int).Mul(head.BaseFee, big.NewInt(basefeeWiggleMultiplier)),
 		)
 	}
 	if gasFeeCap.Cmp(gasTipCap) < 0 {
@@ -435,6 +461,8 @@ func (c *BoundContract) transact(opts *TransactOpts, contract *common.Address, i
 	}
 	if opts.GasPrice != nil {
 		rawTx, err = c.createLegacyTx(opts, contract, input)
+	} else if opts.GasFeeCap != nil && opts.GasTipCap != nil {
+		rawTx, err = c.createDynamicTx(opts, contract, input, nil)
 	} else {
 		// Only query for basefee if gasPrice not specified
 		if head, errHead := c.transactor.HeaderByNumber(ensureContext(opts.Context), nil); errHead != nil {
@@ -548,8 +576,12 @@ func (c *BoundContract) WatchLogs(opts *WatchOpts, name string, query ...[]inter
 
 // UnpackLog unpacks a retrieved log into the provided output structure.
 func (c *BoundContract) UnpackLog(out interface{}, event string, log types.Log) error {
+	// Anonymous events are not supported.
+	if len(log.Topics) == 0 {
+		return errNoEventSignature
+	}
 	if log.Topics[0] != c.abi.Events[event].ID {
-		return fmt.Errorf("event signature mismatch")
+		return errEventSignatureMismatch
 	}
 	if len(log.Data) > 0 {
 		if err := c.abi.UnpackIntoInterface(out, event, log.Data); err != nil {
@@ -567,8 +599,12 @@ func (c *BoundContract) UnpackLog(out interface{}, event string, log types.Log) 
 
 // UnpackLogIntoMap unpacks a retrieved log into the provided map.
 func (c *BoundContract) UnpackLogIntoMap(out map[string]interface{}, event string, log types.Log) error {
+	// Anonymous events are not supported.
+	if len(log.Topics) == 0 {
+		return errNoEventSignature
+	}
 	if log.Topics[0] != c.abi.Events[event].ID {
-		return fmt.Errorf("event signature mismatch")
+		return errEventSignatureMismatch
 	}
 	if len(log.Data) > 0 {
 		if err := c.abi.UnpackIntoMap(out, event, log.Data); err != nil {
