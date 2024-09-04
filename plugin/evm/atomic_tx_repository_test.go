@@ -5,17 +5,17 @@ package evm
 
 import (
 	"encoding/binary"
-	"fmt"
-	"sort"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/chains/atomic"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database/prefixdb"
 	"github.com/ava-labs/avalanchego/database/versiondb"
+	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ava-labs/avalanchego/codec"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
 	"github.com/stretchr/testify/assert"
@@ -97,19 +97,14 @@ func writeTxs(t testing.TB, repo AtomicTxRepository, fromHeight uint64, toHeight
 // verifyTxs asserts [repo] can find all txs in [txMap] by height and txID
 func verifyTxs(t testing.TB, repo AtomicTxRepository, txMap map[uint64][]*Tx) {
 	// We should be able to fetch indexed txs by height:
-	getComparator := func(txs []*Tx) func(int, int) bool {
-		return func(i, j int) bool {
-			return txs[i].ID().Hex() < txs[j].ID().Hex()
-		}
-	}
 	for height, expectedTxs := range txMap {
 		txs, err := repo.GetByHeight(height)
 		assert.NoErrorf(t, err, "unexpected error on GetByHeight at height=%d", height)
 		assert.Lenf(t, txs, len(expectedTxs), "wrong len of txs at height=%d", height)
 		// txs should be stored in order of txID
-		sort.Slice(expectedTxs, getComparator(expectedTxs))
+		utils.Sort(expectedTxs)
 
-		txIDs := ids.Set{}
+		txIDs := set.Set[ids.ID]{}
 		for i := 0; i < len(txs); i++ {
 			assert.Equalf(t, expectedTxs[i].ID().Hex(), txs[i].ID().Hex(), "wrong txID at height=%d idx=%d", height, i)
 			txIDs.Add(txs[i].ID())
@@ -121,6 +116,8 @@ func verifyTxs(t testing.TB, repo AtomicTxRepository, txMap map[uint64][]*Tx) {
 // verifyOperations creates an iterator over the atomicTrie at [rootHash] and verifies that the all of the operations in the trie in the interval [from, to] are identical to
 // the atomic operations contained in [operationsMap] on the same interval.
 func verifyOperations(t testing.TB, atomicTrie AtomicTrie, codec codec.Manager, rootHash common.Hash, from, to uint64, operationsMap map[uint64]map[ids.ID]*atomic.Requests) {
+	t.Helper()
+
 	// Start the iterator at [from]
 	fromBytes := make([]byte, wrappers.LongLen)
 	binary.BigEndian.PutUint64(fromBytes, from)
@@ -186,7 +183,7 @@ func verifyOperations(t testing.TB, atomicTrie AtomicTrie, codec codec.Manager, 
 func TestAtomicRepositoryReadWriteSingleTx(t *testing.T) {
 	db := versiondb.New(memdb.New())
 	codec := testTxCodec()
-	repo, err := NewAtomicTxRepository(db, codec, 0)
+	repo, err := NewAtomicTxRepository(db, codec, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +196,7 @@ func TestAtomicRepositoryReadWriteSingleTx(t *testing.T) {
 func TestAtomicRepositoryReadWriteMultipleTxs(t *testing.T) {
 	db := versiondb.New(memdb.New())
 	codec := testTxCodec()
-	repo, err := NewAtomicTxRepository(db, codec, 0)
+	repo, err := NewAtomicTxRepository(db, codec, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +219,7 @@ func TestAtomicRepositoryPreAP5Migration(t *testing.T) {
 
 	// Ensure the atomic repository can correctly migrate the transactions
 	// from the old accepted atomic tx DB to add the height index.
-	repo, err := NewAtomicTxRepository(db, codec, 100)
+	repo, err := NewAtomicTxRepository(db, codec, 100, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +245,7 @@ func TestAtomicRepositoryPostAP5Migration(t *testing.T) {
 
 	// Ensure the atomic repository can correctly migrate the transactions
 	// from the old accepted atomic tx DB to add the height index.
-	repo, err := NewAtomicTxRepository(db, codec, 200)
+	repo, err := NewAtomicTxRepository(db, codec, 200, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,7 +267,7 @@ func benchAtomicRepositoryIndex10_000(b *testing.B, maxHeight uint64, txsPerHeig
 	if err := db.Commit(); err != nil {
 		b.Fatal(err)
 	}
-	repo, err := NewAtomicTxRepository(db, codec, maxHeight)
+	repo, err := NewAtomicTxRepository(db, codec, maxHeight, nil)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -288,64 +285,4 @@ func BenchmarkAtomicRepositoryIndex_10kBlocks_10Tx(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		benchAtomicRepositoryIndex10_000(b, 10_000, 10)
 	}
-}
-
-func TestRepairAtomicRepositoryForBonusBlockTxs(t *testing.T) {
-	db := versiondb.New(memdb.New())
-	atomicTxRepository, err := NewAtomicTxRepository(db, testTxCodec(), 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// check completion flag is not set
-	done, err := atomicTxRepository.IsBonusBlocksRepaired()
-	assert.NoError(t, err)
-	assert.False(t, done)
-
-	tx := newTestTx()
-	// write the same tx to 3 heights.
-	canonical, bonus1, bonus2 := uint64(10), uint64(20), uint64(30)
-	atomicTxRepository.Write(canonical, []*Tx{tx})
-	atomicTxRepository.Write(bonus1, []*Tx{tx})
-	atomicTxRepository.Write(bonus2, []*Tx{tx})
-	db.Commit()
-
-	_, foundHeight, err := atomicTxRepository.GetByTxID(tx.ID())
-	assert.NoError(t, err)
-	assert.Equal(t, bonus2, foundHeight)
-
-	allHeights := []uint64{canonical, bonus1, bonus2}
-	if err := repairAtomicRepositoryForBonusBlockTxs(
-		atomicTxRepository,
-		db,
-		allHeights,
-		func(height uint64) (*Tx, error) {
-			if height == 10 || height == 20 || height == 30 {
-				return tx, nil
-			}
-			return nil, fmt.Errorf("unexpected height %d", height)
-		},
-	); err != nil {
-		t.Fatal(err)
-	}
-
-	// check canonical height is indexed against txID
-	_, foundHeight, err = atomicTxRepository.GetByTxID(tx.ID())
-	assert.NoError(t, err)
-	assert.Equal(t, canonical, foundHeight)
-
-	// check tx can be found with any of the heights
-	for _, height := range allHeights {
-		txs, err := atomicTxRepository.GetByHeight(height)
-		if err != nil {
-			t.Fatal(err)
-		}
-		assert.Len(t, txs, 1)
-		assert.Equal(t, tx.ID(), txs[0].ID())
-	}
-
-	// check completion flag is set
-	done, err = atomicTxRepository.IsBonusBlocksRepaired()
-	assert.NoError(t, err)
-	assert.True(t, done)
 }

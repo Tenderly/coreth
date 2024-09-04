@@ -4,13 +4,20 @@
 package evm
 
 import (
+	"context"
 	"math/big"
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/ava-labs/coreth/params"
+
 	"github.com/ava-labs/avalanchego/chains/atomic"
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
-	"github.com/tenderly/coreth/params"
 )
 
 func TestCalculateDynamicFee(t *testing.T) {
@@ -34,7 +41,7 @@ func TestCalculateDynamicFee(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		cost, err := calculateDynamicFee(test.gas, test.baseFee)
+		cost, err := CalculateDynamicFee(test.gas, test.baseFee)
 		if test.expectedErr == nil {
 			if err != nil {
 				t.Fatalf("Unexpectedly failed to calculate dynamic fee: %s", err)
@@ -59,19 +66,13 @@ type atomicTxVerifyTest struct {
 
 // executeTxVerifyTest tests
 func executeTxVerifyTest(t *testing.T, test atomicTxVerifyTest) {
+	require := require.New(t)
 	atomicTx := test.generate(t)
 	err := atomicTx.Verify(test.ctx, test.rules)
 	if len(test.expectedErr) == 0 {
-		if err != nil {
-			t.Fatalf("Atomic tx failed unexpectedly due to: %s", err)
-		}
+		require.NoError(err)
 	} else {
-		if err == nil {
-			t.Fatalf("Expected atomic tx test to fail due to: %s, but passed verification", test.expectedErr)
-		}
-		if !strings.Contains(err.Error(), test.expectedErr) {
-			t.Fatalf("Expected Verify to fail due to %s, but failed with: %s", test.expectedErr, err)
-		}
+		require.ErrorContains(err, test.expectedErr, "expected tx verify to fail with specified error")
 	}
 }
 
@@ -128,7 +129,7 @@ func executeTxTest(t *testing.T, test atomicTxTest) {
 	}
 
 	// Retrieve dummy state to test that EVMStateTransfer works correctly
-	sdb, err := vm.chain.BlockState(lastAcceptedBlock.ethBlock)
+	sdb, err := vm.blockChain.StateAt(lastAcceptedBlock.ethBlock.Root())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,22 +146,31 @@ func executeTxTest(t *testing.T, test atomicTxTest) {
 		return
 	}
 
-	if err := vm.issueTx(tx, true /*=local*/); err != nil {
+	if test.bootstrapping {
+		// If this test simulates processing txs during bootstrapping (where some verification is skipped),
+		// initialize the block building goroutines normally initialized in SetState(snow.NormalOps).
+		// This ensures that the VM can build a block correctly during the test.
+		if err := vm.initBlockBuilding(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := vm.mempool.AddLocalTx(tx); err != nil {
 		t.Fatal(err)
 	}
 	<-issuer
 
 	// If we've reached this point, we expect to be able to build and verify the block without any errors
-	blk, err := vm.BuildBlock()
+	blk, err := vm.BuildBlock(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := blk.Verify(); err != nil {
+	if err := blk.Verify(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := blk.Accept(); len(test.acceptErr) == 0 && err != nil {
+	if err := blk.Accept(context.Background()); len(test.acceptErr) == 0 && err != nil {
 		t.Fatalf("Accept failed unexpectedly due to: %s", err)
 	} else if len(test.acceptErr) != 0 {
 		if err == nil {
@@ -175,5 +185,129 @@ func executeTxTest(t *testing.T, test atomicTxTest) {
 
 	if test.checkState != nil {
 		test.checkState(t, vm)
+	}
+}
+
+func TestEVMOutputCompare(t *testing.T) {
+	type test struct {
+		name     string
+		a, b     EVMOutput
+		expected int
+	}
+
+	tests := []test{
+		{
+			name: "address less",
+			a: EVMOutput{
+				Address: common.BytesToAddress([]byte{0x01}),
+				AssetID: ids.ID{1},
+			},
+			b: EVMOutput{
+				Address: common.BytesToAddress([]byte{0x02}),
+				AssetID: ids.ID{0},
+			},
+			expected: -1,
+		},
+		{
+			name: "address greater; assetIDs equal",
+			a: EVMOutput{
+				Address: common.BytesToAddress([]byte{0x02}),
+				AssetID: ids.ID{},
+			},
+			b: EVMOutput{
+				Address: common.BytesToAddress([]byte{0x01}),
+				AssetID: ids.ID{},
+			},
+			expected: 1,
+		},
+		{
+			name: "addresses equal; assetID less",
+			a: EVMOutput{
+				Address: common.BytesToAddress([]byte{0x01}),
+				AssetID: ids.ID{0},
+			},
+			b: EVMOutput{
+				Address: common.BytesToAddress([]byte{0x01}),
+				AssetID: ids.ID{1},
+			},
+			expected: -1,
+		},
+		{
+			name:     "equal",
+			a:        EVMOutput{},
+			b:        EVMOutput{},
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+
+			require.Equal(tt.expected, tt.a.Compare(tt.b))
+			require.Equal(-tt.expected, tt.b.Compare(tt.a))
+		})
+	}
+}
+
+func TestEVMInputCompare(t *testing.T) {
+	type test struct {
+		name     string
+		a, b     EVMInput
+		expected int
+	}
+
+	tests := []test{
+		{
+			name: "address less",
+			a: EVMInput{
+				Address: common.BytesToAddress([]byte{0x01}),
+				AssetID: ids.ID{1},
+			},
+			b: EVMInput{
+				Address: common.BytesToAddress([]byte{0x02}),
+				AssetID: ids.ID{0},
+			},
+			expected: -1,
+		},
+		{
+			name: "address greater; assetIDs equal",
+			a: EVMInput{
+				Address: common.BytesToAddress([]byte{0x02}),
+				AssetID: ids.ID{},
+			},
+			b: EVMInput{
+				Address: common.BytesToAddress([]byte{0x01}),
+				AssetID: ids.ID{},
+			},
+			expected: 1,
+		},
+		{
+			name: "addresses equal; assetID less",
+			a: EVMInput{
+				Address: common.BytesToAddress([]byte{0x01}),
+				AssetID: ids.ID{0},
+			},
+			b: EVMInput{
+				Address: common.BytesToAddress([]byte{0x01}),
+				AssetID: ids.ID{1},
+			},
+			expected: -1,
+		},
+		{
+			name:     "equal",
+			a:        EVMInput{},
+			b:        EVMInput{},
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+
+			require.Equal(tt.expected, tt.a.Compare(tt.b))
+			require.Equal(-tt.expected, tt.b.Compare(tt.a))
+		})
 	}
 }

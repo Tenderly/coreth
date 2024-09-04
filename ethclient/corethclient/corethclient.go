@@ -89,7 +89,6 @@ type StorageResult struct {
 // GetProof returns the account and storage values of the specified account including the Merkle-proof.
 // The block number can be nil, in which case the value is taken from the latest known block.
 func (ec *Client) GetProof(ctx context.Context, account common.Address, keys []string, blockNumber *big.Int) (*AccountResult, error) {
-
 	type storageResult struct {
 		Key   string       `json:"key"`
 		Value *hexutil.Big `json:"value"`
@@ -104,6 +103,11 @@ func (ec *Client) GetProof(ctx context.Context, account common.Address, keys []s
 		Nonce        hexutil.Uint64  `json:"nonce"`
 		StorageHash  common.Hash     `json:"storageHash"`
 		StorageProof []storageResult `json:"storageProof"`
+	}
+
+	// Avoid keys being 'null'.
+	if keys == nil {
+		keys = []string{}
 	}
 
 	var res accountResult
@@ -124,6 +128,7 @@ func (ec *Client) GetProof(ctx context.Context, account common.Address, keys []s
 		Nonce:        uint64(res.Nonce),
 		CodeHash:     res.CodeHash,
 		StorageHash:  res.StorageHash,
+		StorageProof: storageResults,
 	}
 	return &result, err
 }
@@ -181,7 +186,7 @@ func toCallArg(msg interfaces.CallMsg) interface{} {
 		"to":   msg.To,
 	}
 	if len(msg.Data) > 0 {
-		arg["data"] = hexutil.Bytes(msg.Data)
+		arg["input"] = hexutil.Bytes(msg.Data)
 	}
 	if msg.Value != nil {
 		arg["value"] = (*hexutil.Big)(msg.Value)

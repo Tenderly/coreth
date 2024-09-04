@@ -12,8 +12,9 @@ import (
 )
 
 var (
-	_ GossipHandler  = NoopMempoolGossipHandler{}
-	_ RequestHandler = NoopRequestHandler{}
+	_ GossipHandler            = NoopMempoolGossipHandler{}
+	_ RequestHandler           = NoopRequestHandler{}
+	_ CrossChainRequestHandler = NoopCrossChainRequestHandler{}
 )
 
 // GossipHandler handles incoming gossip messages
@@ -35,7 +36,7 @@ func (NoopMempoolGossipHandler) HandleEthTxs(nodeID ids.NodeID, msg EthTxsGossip
 }
 
 // RequestHandler interface handles incoming requests from peers
-// Must have methods in format of handleType(context.Context, ids.ShortID, uint32, request Type) error
+// Must have methods in format of handleType(context.Context, ids.NodeID, uint32, request Type) error
 // so that the Request object of relevant Type can invoke its respective handle method
 // on this struct.
 // Also see GossipHandler for implementation style.
@@ -44,16 +45,17 @@ type RequestHandler interface {
 	HandleAtomicTrieLeafsRequest(ctx context.Context, nodeID ids.NodeID, requestID uint32, leafsRequest LeafsRequest) ([]byte, error)
 	HandleBlockRequest(ctx context.Context, nodeID ids.NodeID, requestID uint32, request BlockRequest) ([]byte, error)
 	HandleCodeRequest(ctx context.Context, nodeID ids.NodeID, requestID uint32, codeRequest CodeRequest) ([]byte, error)
+	HandleMessageSignatureRequest(ctx context.Context, nodeID ids.NodeID, requestID uint32, signatureRequest MessageSignatureRequest) ([]byte, error)
+	HandleBlockSignatureRequest(ctx context.Context, nodeID ids.NodeID, requestID uint32, signatureRequest BlockSignatureRequest) ([]byte, error)
 }
 
 // ResponseHandler handles response for a sent request
 // Only one of OnResponse or OnFailure is called for a given requestID, not both
 type ResponseHandler interface {
 	// OnResponse is invoked when the peer responded to a request
-	OnResponse(nodeID ids.NodeID, requestID uint32, response []byte) error
+	OnResponse(response []byte) error
 	// OnFailure is invoked when there was a failure in processing a request
-	// The FailureReason outlines the underlying cause.
-	OnFailure(nodeID ids.NodeID, requestID uint32) error
+	OnFailure() error
 }
 
 type NoopRequestHandler struct{}
@@ -71,5 +73,24 @@ func (NoopRequestHandler) HandleBlockRequest(ctx context.Context, nodeID ids.Nod
 }
 
 func (NoopRequestHandler) HandleCodeRequest(ctx context.Context, nodeID ids.NodeID, requestID uint32, codeRequest CodeRequest) ([]byte, error) {
+	return nil, nil
+}
+
+func (NoopRequestHandler) HandleMessageSignatureRequest(ctx context.Context, nodeID ids.NodeID, requestID uint32, signatureRequest MessageSignatureRequest) ([]byte, error) {
+	return nil, nil
+}
+
+func (NoopRequestHandler) HandleBlockSignatureRequest(ctx context.Context, nodeID ids.NodeID, requestID uint32, signatureRequest BlockSignatureRequest) ([]byte, error) {
+	return nil, nil
+}
+
+// CrossChainRequestHandler interface handles incoming requests from another chain
+type CrossChainRequestHandler interface {
+	HandleEthCallRequest(ctx context.Context, requestingchainID ids.ID, requestID uint32, ethCallRequest EthCallRequest) ([]byte, error)
+}
+
+type NoopCrossChainRequestHandler struct{}
+
+func (NoopCrossChainRequestHandler) HandleEthCallRequest(ctx context.Context, requestingchainID ids.ID, requestID uint32, ethCallRequest EthCallRequest) ([]byte, error) {
 	return nil, nil
 }

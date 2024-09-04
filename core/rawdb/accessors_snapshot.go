@@ -28,6 +28,7 @@ package rawdb
 
 import (
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/tenderly/coreth/ethdb"
 )
@@ -70,7 +71,7 @@ func ReadSnapshotBlockHash(db ethdb.KeyValueReader) common.Hash {
 	return common.BytesToHash(data)
 }
 
-// WriteSnapshotRoot stores the root of the block whose state is contained in
+// WriteSnapshotBlockHash stores the root of the block whose state is contained in
 // the persisted snapshot.
 func WriteSnapshotBlockHash(db ethdb.KeyValueWriter, blockHash common.Hash) {
 	if err := db.Put(snapshotBlockHashKey, blockHash[:]); err != nil {

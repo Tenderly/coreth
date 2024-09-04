@@ -4,6 +4,7 @@
 package statesyncclient
 
 import (
+	"context"
 	"errors"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -18,7 +19,7 @@ var _ peer.NetworkClient = &mockNetwork{}
 type mockNetwork struct {
 	// captured request data
 	numCalls         uint
-	requestedVersion version.Application
+	requestedVersion *version.Application
 	request          []byte
 
 	// response mocking for RequestAny and Request calls
@@ -28,7 +29,7 @@ type mockNetwork struct {
 	nodesRequested []ids.NodeID
 }
 
-func (t *mockNetwork) RequestAny(minVersion version.Application, request []byte) ([]byte, ids.NodeID, error) {
+func (t *mockNetwork) SendAppRequestAny(ctx context.Context, minVersion *version.Application, request []byte) ([]byte, ids.NodeID, error) {
 	if len(t.response) == 0 {
 		return nil, ids.EmptyNodeID, errors.New("no mocked response to return in mockNetwork")
 	}
@@ -39,7 +40,7 @@ func (t *mockNetwork) RequestAny(minVersion version.Application, request []byte)
 	return response, ids.EmptyNodeID, err
 }
 
-func (t *mockNetwork) Request(nodeID ids.NodeID, request []byte) ([]byte, error) {
+func (t *mockNetwork) SendAppRequest(ctx context.Context, nodeID ids.NodeID, request []byte) ([]byte, error) {
 	if len(t.response) == 0 {
 		return nil, errors.New("no mocked response to return in mockNetwork")
 	}
@@ -74,6 +75,10 @@ func (t *mockNetwork) processMock(request []byte) ([]byte, error) {
 }
 
 func (t *mockNetwork) Gossip([]byte) error {
+	panic("not implemented") // we don't care about this function for this test
+}
+
+func (t *mockNetwork) SendCrossChainRequest(ctx context.Context, chainID ids.ID, request []byte) ([]byte, error) {
 	panic("not implemented") // we don't care about this function for this test
 }
 
