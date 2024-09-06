@@ -19,9 +19,9 @@ package logger
 import (
 	"math/big"
 
-	"github.com/ava-labs/coreth/core/types"
-	"github.com/ava-labs/coreth/core/vm"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/tenderly/coreth/core/types"
+	"github.com/tenderly/coreth/core/vm"
 )
 
 // accessList is an accumulator for the set of accounts and storage slots an EVM

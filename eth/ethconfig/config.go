@@ -29,12 +29,9 @@ package ethconfig
 import (
 	"time"
 
-	"github.com/ava-labs/coreth/core"
-	"github.com/ava-labs/coreth/core/txpool/blobpool"
-	"github.com/ava-labs/coreth/core/txpool/legacypool"
-	"github.com/ava-labs/coreth/eth/gasprice"
-	"github.com/ava-labs/coreth/miner"
-	"github.com/ava-labs/coreth/params"
+	"github.com/tenderly/coreth/core"
+	"github.com/tenderly/coreth/eth/gasprice"
+	"github.com/tenderly/coreth/miner"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -42,7 +39,6 @@ import (
 var DefaultFullGPOConfig = gasprice.Config{
 	Blocks:              40,
 	Percentile:          60,
-	MaxLookbackSeconds:  gasprice.DefaultMaxLookbackSeconds,
 	MaxCallBlockHistory: gasprice.DefaultMaxCallBlockHistory,
 	MaxBlockHistory:     gasprice.DefaultMaxBlockHistory,
 	MinPrice:            gasprice.DefaultMinPrice,
@@ -55,35 +51,37 @@ var DefaultConfig = NewDefaultConfig()
 
 func NewDefaultConfig() Config {
 	return Config{
-		NetworkId:                 0, // enable auto configuration of networkID == chainID
-		StateHistory:              params.FullImmutabilityThreshold,
-		TrieCleanCache:            512,
-		TrieDirtyCache:            256,
-		TrieDirtyCommitTarget:     20,
-		TriePrefetcherParallelism: 16,
-		SnapshotCache:             256,
-		AcceptedCacheSize:         32,
-		Miner:                     miner.Config{},
-		TxPool:                    legacypool.DefaultConfig,
-		BlobPool:                  blobpool.DefaultConfig,
-		RPCGasCap:                 25000000,
-		RPCEVMTimeout:             5 * time.Second,
-		GPO:                       DefaultFullGPOConfig,
-		RPCTxFeeCap:               1, // 1 AVAX
+		NetworkId:             1,
+		LightPeers:            100,
+		UltraLightFraction:    75,
+		DatabaseCache:         512,
+		TrieCleanCache:        256,
+		TrieDirtyCache:        256,
+		TrieDirtyCommitTarget: 20,
+		SnapshotCache:         128,
+		Miner:                 miner.Config{},
+		TxPool:                core.DefaultTxPoolConfig,
+		RPCGasCap:             25000000,
+		RPCEVMTimeout:         5 * time.Second,
+		GPO:                   DefaultFullGPOConfig,
+		RPCTxFeeCap:           1, // 1 AVAX
 	}
 }
 
-//go:generate go run github.com/fjl/gencodec -type Config -formats toml -out gen_config.go
+//go:generate gencodec -type Config -formats toml -out gen_config.go
 
-// Config contains configuration options for ETH and LES protocols.
+// Config contains configuration options for of the ETH and LES protocols.
 type Config struct {
 	// The genesis block, which is inserted if the database is empty.
 	// If nil, the Ethereum main net block is used.
 	Genesis *core.Genesis `toml:",omitempty"`
 
-	// Network ID separates blockchains on the peer-to-peer networking level. When left
-	// zero, the chain ID is used as network ID.
-	NetworkId uint64
+	// Protocol options
+	NetworkId uint64 // Network ID to use for selecting peers to connect to
+
+	// This can be set to list of enrtree:// URLs which will be queried for
+	// for nodes to connect to.
+	DiscoveryURLs []string
 
 	Pruning                         bool    // Whether to disable pruning and flush everything to disk
 	AcceptorQueueLimit              int     // Maximum blocks to queue before blocking during acceptance
@@ -91,38 +89,52 @@ type Config struct {
 	PopulateMissingTries            *uint64 // Height at which to start re-populating missing tries on startup.
 	PopulateMissingTriesParallelism int     // Number of concurrent readers to use when re-populating missing tries on startup.
 	AllowMissingTries               bool    // Whether to allow an archival node to run with pruning enabled and corrupt a complete index.
-	SnapshotDelayInit               bool    // Whether snapshot tree should be initialized on startup or delayed until explicit call (= StateSyncEnabled)
-	SnapshotWait                    bool    // Whether to wait for the initial snapshot generation
+	SnapshotDelayInit               bool    // Whether snapshot tree should be initialized on startup or delayed until explicit call
+	SnapshotAsync                   bool    // Whether to generate the initial snapshot in async mode
 	SnapshotVerify                  bool    // Whether to verify generated snapshots
 	SkipSnapshotRebuild             bool    // Whether to skip rebuilding the snapshot in favor of returning an error (only set to true for tests)
 
+	// Whitelist of required block number -> hash values to accept
+	Whitelist map[uint64]common.Hash `toml:"-"`
+
+	// Light client options
+	LightServ    int  `toml:",omitempty"` // Maximum percentage of time allowed for serving LES requests
+	LightIngress int  `toml:",omitempty"` // Incoming bandwidth limit for light servers
+	LightEgress  int  `toml:",omitempty"` // Outgoing bandwidth limit for light servers
+	LightPeers   int  `toml:",omitempty"` // Maximum number of LES client peers
+	LightNoPrune bool `toml:",omitempty"` // Whether to disable light chain pruning
+
+	// Ultra Light client options
+	UltraLightServers      []string `toml:",omitempty"` // List of trusted ultra light servers
+	UltraLightFraction     int      `toml:",omitempty"` // Percentage of trusted servers to accept an announcement
+	UltraLightOnlyAnnounce bool     `toml:",omitempty"` // Whether to only announce headers, or also serve them
+
 	// Database options
 	SkipBcVersionCheck bool `toml:"-"`
+	DatabaseHandles    int  `toml:"-"`
+	DatabaseCache      int
+	// DatabaseFreezer    string
 
-	// TrieDB and snapshot options
-	TrieCleanCache            int
-	TrieDirtyCache            int
-	TrieDirtyCommitTarget     int
-	TriePrefetcherParallelism int
-	SnapshotCache             int
-	Preimages                 bool
-
-	// AcceptedCacheSize is the depth of accepted headers cache and accepted
-	// logs cache at the accepted tip.
-	AcceptedCacheSize int
+	TrieCleanCache        int
+	TrieDirtyCache        int
+	TrieDirtyCommitTarget int
+	SnapshotCache         int
+	Preimages             bool
 
 	// Mining options
 	Miner miner.Config
 
 	// Transaction pool options
-	TxPool   legacypool.Config
-	BlobPool blobpool.Config
+	TxPool core.TxPoolConfig
 
 	// Gas Price Oracle options
 	GPO gasprice.Config
 
 	// Enables tracking of SHA3 preimages in the VM
 	EnablePreimageRecording bool
+
+	// Miscellaneous options
+	DocRoot string `toml:"-"`
 
 	// RPCGasCap is the global gas cap for eth-call variants.
 	RPCGasCap uint64 `toml:",omitempty"`
@@ -131,7 +143,7 @@ type Config struct {
 	RPCEVMTimeout time.Duration
 
 	// RPCTxFeeCap is the global transaction fee(price * gaslimit) cap for
-	// send-transaction variants. The unit is ether.
+	// send-transction variants. The unit is ether.
 	RPCTxFeeCap float64 `toml:",omitempty"`
 
 	// AllowUnfinalizedQueries allow unfinalized queries
@@ -141,38 +153,10 @@ type Config struct {
 	// Unprotected transactions are transactions that are signed without EIP-155
 	// replay protection.
 	AllowUnprotectedTxs bool
-	// AllowUnprotectedTxHashes provides a list of transaction hashes, which will be allowed
-	// to be issued without replay protection over the API even if AllowUnprotectedTxs is false.
-	AllowUnprotectedTxHashes []common.Hash
 
 	// OfflinePruning enables offline pruning on startup of the node. If a node is started
 	// with this configuration option, it must finish pruning before resuming normal operation.
 	OfflinePruning                bool
 	OfflinePruningBloomFilterSize uint64
 	OfflinePruningDataDirectory   string
-
-	// SkipUpgradeCheck disables checking that upgrades must take place before the last
-	// accepted block. Skipping this check is useful when a node operator does not update
-	// their node before the network upgrade and their node accepts blocks that have
-	// identical state with the pre-upgrade ruleset.
-	SkipUpgradeCheck bool
-
-	// TxLookupLimit is the maximum number of blocks from head whose tx indices
-	// are reserved:
-	//  * 0:   means no limit
-	//  * N:   means N block limit [HEAD-N+1, HEAD] and delete extra indexes
-	// Deprecated, use 'TransactionHistory' instead.
-	TxLookupLimit      uint64 `toml:",omitempty"` // The maximum number of blocks from head whose tx indices are reserved.
-	TransactionHistory uint64 `toml:",omitempty"` // The maximum number of blocks from head whose tx indices are reserved.
-	StateHistory       uint64 `toml:",omitempty"` // The maximum number of blocks from head whose state histories are reserved.
-
-	// State scheme represents the scheme used to store ethereum states and trie
-	// nodes on top. It can be 'hash', 'path', or none which means use the scheme
-	// consistent with persistent state.
-	StateScheme string `toml:",omitempty"`
-
-	// SkipTxIndexing skips indexing transactions.
-	// This is useful for validators that don't need to index transactions.
-	// TxLookupLimit can be still used to control unindexing old transactions.
-	SkipTxIndexing bool
 }

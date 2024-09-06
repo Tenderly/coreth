@@ -10,36 +10,33 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/coreth/core/rawdb"
-	"github.com/ava-labs/coreth/core/state/snapshot"
-	"github.com/ava-labs/coreth/core/types"
-	"github.com/ava-labs/coreth/plugin/evm/message"
-	"github.com/ava-labs/coreth/sync/handlers/stats"
-	"github.com/ava-labs/coreth/sync/syncutils"
-	"github.com/ava-labs/coreth/trie"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/stretchr/testify/assert"
+	"github.com/tenderly/coreth/core/rawdb"
+	"github.com/tenderly/coreth/core/state/snapshot"
+	"github.com/tenderly/coreth/core/types"
+	"github.com/tenderly/coreth/ethdb"
+	"github.com/tenderly/coreth/ethdb/memorydb"
+	"github.com/tenderly/coreth/plugin/evm/message"
+	"github.com/tenderly/coreth/rlp"
+	"github.com/tenderly/coreth/sync/handlers/stats"
+	"github.com/tenderly/coreth/trie"
 )
 
 func TestLeafsRequestHandler_OnLeafsRequest(t *testing.T) {
 	rand.Seed(1)
 	mockHandlerStats := &stats.MockHandlerStats{}
-	memdb := rawdb.NewMemoryDatabase()
-	trieDB := trie.NewDatabase(memdb, nil)
+	memdb := memorydb.New()
+	trieDB := trie.NewDatabase(memdb)
 
-	corruptedTrieRoot, _, _ := syncutils.GenerateTrie(t, trieDB, 100, common.HashLength)
-	tr, err := trie.New(trie.TrieID(corruptedTrieRoot), trieDB)
-	if err != nil {
-		t.Fatal(err)
-	}
+	corruptedTrieRoot, _, _ := trie.GenerateTrie(t, trieDB, 100, common.HashLength)
 	// Corrupt [corruptedTrieRoot]
-	syncutils.CorruptTrie(t, memdb, tr, 5)
+	trie.CorruptTrie(t, trieDB, corruptedTrieRoot, 5)
 
-	largeTrieRoot, largeTrieKeys, _ := syncutils.GenerateTrie(t, trieDB, 10_000, common.HashLength)
-	smallTrieRoot, _, _ := syncutils.GenerateTrie(t, trieDB, 500, common.HashLength)
-	accountTrieRoot, accounts := syncutils.FillAccounts(
+	largeTrieRoot, largeTrieKeys, _ := trie.GenerateTrie(t, trieDB, 10_000, common.HashLength)
+	smallTrieRoot, _, _ := trie.GenerateTrie(t, trieDB, 500, common.HashLength)
+	accountTrieRoot, accounts := trie.FillAccounts(
 		t,
 		trieDB,
 		common.Hash{},
@@ -74,12 +71,6 @@ func TestLeafsRequestHandler_OnLeafsRequest(t *testing.T) {
 	}
 	snapshotProvider := &TestSnapshotProvider{}
 	leafsHandler := NewLeafsRequestHandler(trieDB, snapshotProvider, message.Codec, mockHandlerStats)
-	snapConfig := snapshot.Config{
-		CacheSize:  64,
-		AsyncBuild: false,
-		NoBuild:    false,
-		SkipVerify: true,
-	}
 
 	tests := map[string]struct {
 		prepareTestFn    func() (context.Context, message.LeafsRequest)
@@ -450,7 +441,7 @@ func TestLeafsRequestHandler_OnLeafsRequest(t *testing.T) {
 		},
 		"account data served from snapshot": {
 			prepareTestFn: func() (context.Context, message.LeafsRequest) {
-				snap, err := snapshot.New(snapConfig, memdb, trieDB, common.Hash{}, accountTrieRoot)
+				snap, err := snapshot.New(memdb, trieDB, 64, common.Hash{}, accountTrieRoot, false, true, false)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -477,7 +468,7 @@ func TestLeafsRequestHandler_OnLeafsRequest(t *testing.T) {
 		},
 		"partial account data served from snapshot": {
 			prepareTestFn: func() (context.Context, message.LeafsRequest) {
-				snap, err := snapshot.New(snapConfig, memdb, trieDB, common.Hash{}, accountTrieRoot)
+				snap, err := snapshot.New(memdb, trieDB, 64, common.Hash{}, accountTrieRoot, false, true, false)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -492,12 +483,15 @@ func TestLeafsRequestHandler_OnLeafsRequest(t *testing.T) {
 					}
 					// modify one entry of 1 in 4 segments
 					if i%(segmentLen*4) == 0 {
-						acc, err := types.FullAccount(it.Account())
-						if err != nil {
+						var acc snapshot.Account
+						if err := rlp.DecodeBytes(it.Account(), &acc); err != nil {
 							t.Fatalf("could not parse snapshot account: %v", err)
 						}
 						acc.Nonce++
-						bytes := types.SlimAccountRLP(*acc)
+						bytes, err := rlp.EncodeToBytes(acc)
+						if err != nil {
+							t.Fatalf("coult not encode snapshot account to bytes: %v", err)
+						}
 						rawdb.WriteAccountSnapshot(memdb, it.Hash(), bytes)
 					}
 					i++
@@ -530,7 +524,7 @@ func TestLeafsRequestHandler_OnLeafsRequest(t *testing.T) {
 		},
 		"storage data served from snapshot": {
 			prepareTestFn: func() (context.Context, message.LeafsRequest) {
-				snap, err := snapshot.New(snapConfig, memdb, trieDB, common.Hash{}, accountTrieRoot)
+				snap, err := snapshot.New(memdb, trieDB, 64, common.Hash{}, accountTrieRoot, false, true, false)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -558,7 +552,7 @@ func TestLeafsRequestHandler_OnLeafsRequest(t *testing.T) {
 		},
 		"partial storage data served from snapshot": {
 			prepareTestFn: func() (context.Context, message.LeafsRequest) {
-				snap, err := snapshot.New(snapConfig, memdb, trieDB, common.Hash{}, accountTrieRoot)
+				snap, err := snapshot.New(memdb, trieDB, 64, common.Hash{}, accountTrieRoot, false, true, false)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -609,7 +603,7 @@ func TestLeafsRequestHandler_OnLeafsRequest(t *testing.T) {
 		},
 		"last snapshot key removed": {
 			prepareTestFn: func() (context.Context, message.LeafsRequest) {
-				snap, err := snapshot.New(snapConfig, memdb, trieDB, common.Hash{}, accountTrieRoot)
+				snap, err := snapshot.New(memdb, trieDB, 64, common.Hash{}, accountTrieRoot, false, true, false)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -645,7 +639,7 @@ func TestLeafsRequestHandler_OnLeafsRequest(t *testing.T) {
 		},
 		"request last key when removed from snapshot": {
 			prepareTestFn: func() (context.Context, message.LeafsRequest) {
-				snap, err := snapshot.New(snapConfig, memdb, trieDB, common.Hash{}, accountTrieRoot)
+				snap, err := snapshot.New(memdb, trieDB, 64, common.Hash{}, accountTrieRoot, false, true, false)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -699,16 +693,19 @@ func TestLeafsRequestHandler_OnLeafsRequest(t *testing.T) {
 func assertRangeProofIsValid(t *testing.T, request *message.LeafsRequest, response *message.LeafsResponse, expectMore bool) {
 	t.Helper()
 
-	var start []byte
+	var start, end []byte
 	if len(request.Start) == 0 {
 		start = bytes.Repeat([]byte{0x00}, common.HashLength)
 	} else {
 		start = request.Start
 	}
+	if len(response.Keys) > 0 {
+		end = response.Keys[len(response.Vals)-1]
+	}
 
 	var proof ethdb.Database
 	if len(response.ProofVals) > 0 {
-		proof = rawdb.NewMemoryDatabase()
+		proof = memorydb.New()
 		defer proof.Close()
 		for _, proofVal := range response.ProofVals {
 			proofKey := crypto.Keccak256(proofVal)
@@ -718,7 +715,7 @@ func assertRangeProofIsValid(t *testing.T, request *message.LeafsRequest, respon
 		}
 	}
 
-	more, err := trie.VerifyRangeProof(request.Root, start, response.Keys, response.Vals, proof)
+	more, err := trie.VerifyRangeProof(request.Root, start, end, response.Keys, response.Vals, proof)
 	assert.NoError(t, err)
 	assert.Equal(t, expectMore, more)
 }

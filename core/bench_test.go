@@ -31,15 +31,15 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ava-labs/coreth/consensus/dummy"
-	"github.com/ava-labs/coreth/core/rawdb"
-	"github.com/ava-labs/coreth/core/types"
-	"github.com/ava-labs/coreth/core/vm"
-	"github.com/ava-labs/coreth/params"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/tenderly/coreth/consensus/dummy"
+	"github.com/tenderly/coreth/core/rawdb"
+	"github.com/tenderly/coreth/core/types"
+	"github.com/tenderly/coreth/core/vm"
+	"github.com/tenderly/coreth/ethdb"
+	"github.com/tenderly/coreth/params"
 )
 
 func BenchmarkInsertChain_empty_memdb(b *testing.B) {
@@ -88,20 +88,8 @@ func genValueTx(nbytes int) func(int, *BlockGen) {
 	return func(i int, gen *BlockGen) {
 		toaddr := common.Address{}
 		data := make([]byte, nbytes)
-		gas, _ := IntrinsicGas(data, nil, false, params.Rules{}) // Disable Istanbul and EIP-2028 for this test
-		signer := gen.Signer()
-		gasPrice := big.NewInt(0)
-		if gen.header.BaseFee != nil {
-			gasPrice = gen.header.BaseFee
-		}
-		tx, _ := types.SignNewTx(benchRootKey, signer, &types.LegacyTx{
-			Nonce:    gen.TxNonce(benchRootAddr),
-			To:       &toaddr,
-			Value:    big.NewInt(1),
-			Gas:      gas,
-			Data:     data,
-			GasPrice: gasPrice,
-		})
+		gas, _ := IntrinsicGas(data, nil, false, false, false)
+		tx, _ := types.SignTx(types.NewTransaction(gen.TxNonce(benchRootAddr), toaddr, big.NewInt(1), gas, big.NewInt(225000000000), data), types.HomesteadSigner{}, benchRootKey)
 		gen.AddTx(tx)
 	}
 }
@@ -130,26 +118,21 @@ func genTxRing(naccounts int) func(int, *BlockGen) {
 	return func(i int, gen *BlockGen) {
 		block := gen.PrevBlock(i - 1)
 		gas := block.GasLimit()
-		signer := gen.Signer()
 		for {
 			gas -= params.TxGas
 			if gas < params.TxGas {
 				break
 			}
 			to := (from + 1) % naccounts
-			burn := new(big.Int).SetUint64(params.TxGas)
-			burn.Mul(burn, gen.header.BaseFee)
-			tx, err := types.SignNewTx(ringKeys[from], signer,
-				&types.LegacyTx{
-					Nonce:    gen.TxNonce(ringAddrs[from]),
-					To:       &ringAddrs[to],
-					Value:    amount.Sub(amount, fee),
-					Gas:      params.TxGas,
-					GasPrice: big.NewInt(225000000000),
-				})
-			if err != nil {
-				panic(err)
-			}
+			tx := types.NewTransaction(
+				gen.TxNonce(ringAddrs[from]),
+				ringAddrs[to],
+				amount.Sub(amount, fee),
+				params.TxGas,
+				big.NewInt(225000000000),
+				nil,
+			)
+			tx, _ = types.SignTx(tx, types.HomesteadSigner{}, ringKeys[from])
 			gen.AddTx(tx)
 			from = to
 		}
@@ -173,15 +156,16 @@ func benchInsertChain(b *testing.B, disk bool, gen func(int, *BlockGen)) {
 
 	// Generate a chain of b.N blocks using the supplied block
 	// generator function.
-	gspec := &Genesis{
+	gspec := Genesis{
 		Config: params.TestChainConfig,
 		Alloc:  GenesisAlloc{benchRootAddr: {Balance: benchRootFunds}},
 	}
-	_, chain, _, _ := GenerateChainWithGenesis(gspec, dummy.NewCoinbaseFaker(), b.N, 10, gen)
+	genesis := gspec.MustCommit(db)
+	chain, _, _ := GenerateChain(gspec.Config, genesis, dummy.NewFaker(), db, b.N, 10, gen)
 
 	// Time the insertion of the new chain.
 	// State and blocks are stored in the same DB.
-	chainman, _ := NewBlockChain(db, DefaultCacheConfig, gspec, dummy.NewCoinbaseFaker(), vm.Config{}, common.Hash{}, false)
+	chainman, _ := NewBlockChain(db, DefaultCacheConfig, gspec.Config, dummy.NewFaker(), vm.Config{}, common.Hash{})
 	defer chainman.Stop()
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -238,18 +222,13 @@ func makeChainForBench(db ethdb.Database, full bool, count uint64) {
 			ParentHash:  hash,
 			Difficulty:  big.NewInt(1),
 			UncleHash:   types.EmptyUncleHash,
-			TxHash:      types.EmptyTxsHash,
-			ReceiptHash: types.EmptyReceiptsHash,
+			TxHash:      types.EmptyRootHash,
+			ReceiptHash: types.EmptyRootHash,
 		}
 		hash = header.Hash()
 
 		rawdb.WriteHeader(db, header)
 		rawdb.WriteCanonicalHash(db, hash, n)
-
-		if n == 0 {
-			rawdb.WriteChainConfig(db, hash, params.TestChainConfig)
-		}
-		rawdb.WriteHeadHeaderHash(db, hash)
 
 		if full || n == 0 {
 			block := types.NewBlockWithHeader(header)
@@ -289,7 +268,7 @@ func benchReadChain(b *testing.B, full bool, count uint64) {
 		if err != nil {
 			b.Fatalf("error opening database at %v: %v", dir, err)
 		}
-		chain, err := NewBlockChain(db, DefaultCacheConfig, nil, dummy.NewFaker(), vm.Config{}, common.Hash{}, false)
+		chain, err := NewBlockChain(db, DefaultCacheConfig, params.TestChainConfig, dummy.NewFaker(), vm.Config{}, common.Hash{})
 		if err != nil {
 			b.Fatalf("error creating chain: %v", err)
 		}
@@ -299,7 +278,7 @@ func benchReadChain(b *testing.B, full bool, count uint64) {
 			if full {
 				hash := header.Hash()
 				rawdb.ReadBody(db, hash, n)
-				rawdb.ReadReceipts(db, hash, n, header.Time, chain.Config())
+				rawdb.ReadReceipts(db, hash, n, chain.Config())
 			}
 		}
 		chain.Stop()

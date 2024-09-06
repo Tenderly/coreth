@@ -31,9 +31,9 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/ava-labs/coreth/core/types"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/tenderly/coreth/core/types"
+	"github.com/tenderly/coreth/ethdb"
 )
 
 func init() {
@@ -65,9 +65,9 @@ type TrieWriter interface {
 }
 
 type TrieDB interface {
-	Dereference(root common.Hash) error
-	Commit(root common.Hash, report bool) error
-	Size() (common.StorageSize, common.StorageSize, common.StorageSize)
+	Dereference(root common.Hash)
+	Commit(root common.Hash, report bool, callback func(common.Hash)) error
+	Size() (common.StorageSize, common.StorageSize)
 	Cap(limit common.StorageSize) error
 }
 
@@ -103,11 +103,12 @@ func (np *noPruningTrieWriter) InsertTrie(block *types.Block) error {
 func (np *noPruningTrieWriter) AcceptTrie(block *types.Block) error {
 	// We don't need to call [Dereference] on the block root at the end of this
 	// function because it is removed from the [TrieDB.Dirties] map in [Commit].
-	return np.TrieDB.Commit(block.Root(), false)
+	return np.TrieDB.Commit(block.Root(), false, nil)
 }
 
 func (np *noPruningTrieWriter) RejectTrie(block *types.Block) error {
-	return np.TrieDB.Dereference(block.Root())
+	np.TrieDB.Dereference(block.Root())
+	return nil
 }
 
 func (np *noPruningTrieWriter) Shutdown() error { return nil }
@@ -120,13 +121,13 @@ type cappedMemoryTrieWriter struct {
 	imageCap         common.StorageSize
 	commitInterval   uint64
 
-	tipBuffer *BoundedBuffer[common.Hash]
+	tipBuffer *BoundedBuffer
 }
 
 func (cm *cappedMemoryTrieWriter) InsertTrie(block *types.Block) error {
 	// The use of [Cap] in [InsertTrie] prevents exceeding the configured memory
 	// limit (and OOM) in case there is a large backlog of processing (unaccepted) blocks.
-	_, nodes, imgs := cm.TrieDB.Size() // all memory is contained within the nodes return for hashdb
+	nodes, imgs := cm.TrieDB.Size()
 	if nodes <= cm.memoryCap && imgs <= cm.imageCap {
 		return nil
 	}
@@ -145,14 +146,12 @@ func (cm *cappedMemoryTrieWriter) AcceptTrie(block *types.Block) error {
 	//
 	// Note: It is safe to dereference roots that have been committed to disk
 	// (they are no-ops).
-	if err := cm.tipBuffer.Insert(root); err != nil {
-		return err
-	}
+	cm.tipBuffer.Insert(root)
 
 	// Commit this root if we have reached the [commitInterval].
 	modCommitInterval := block.NumberU64() % cm.commitInterval
 	if modCommitInterval == 0 {
-		if err := cm.TrieDB.Commit(root, true); err != nil {
+		if err := cm.TrieDB.Commit(root, true, nil); err != nil {
 			return fmt.Errorf("failed to commit trie for block %s: %w", block.Hash().Hex(), err)
 		}
 		return nil
@@ -174,7 +173,7 @@ func (cm *cappedMemoryTrieWriter) AcceptTrie(block *types.Block) error {
 		return nil
 	}
 	targetMemory := cm.targetCommitSize + cm.flushStepSize*common.StorageSize(distanceFromCommit)
-	_, nodes, _ := cm.TrieDB.Size()
+	nodes, _ := cm.TrieDB.Size()
 	if nodes <= targetMemory {
 		return nil
 	}
@@ -193,12 +192,12 @@ func (cm *cappedMemoryTrieWriter) RejectTrie(block *types.Block) error {
 func (cm *cappedMemoryTrieWriter) Shutdown() error {
 	// If [tipBuffer] entry is empty, no need to do any cleanup on
 	// shutdown.
-	last, exists := cm.tipBuffer.Last()
-	if !exists {
+	last := cm.tipBuffer.Last()
+	if last == (common.Hash{}) {
 		return nil
 	}
 
 	// Attempt to commit last item added to [dereferenceQueue] on shutdown to avoid
 	// re-processing the state on the next startup.
-	return cm.TrieDB.Commit(last, true)
+	return cm.TrieDB.Commit(last, true, nil)
 }

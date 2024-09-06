@@ -8,22 +8,22 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ava-labs/coreth/accounts/keystore"
-	"github.com/ava-labs/coreth/core/rawdb"
-	"github.com/ava-labs/coreth/core/types"
-	"github.com/ava-labs/coreth/sync/syncutils"
-	"github.com/ava-labs/coreth/trie"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/assert"
+	"github.com/tenderly/coreth/accounts/keystore"
+	"github.com/tenderly/coreth/core/rawdb"
+	"github.com/tenderly/coreth/core/state/snapshot"
+	"github.com/tenderly/coreth/core/types"
+	"github.com/tenderly/coreth/rlp"
+	"github.com/tenderly/coreth/trie"
 )
 
 // assertDBConsistency checks [serverTrieDB] and [clientTrieDB] have the same EVM state trie at [root],
 // and that [clientTrieDB.DiskDB] has corresponding account & snapshot values.
 // Also verifies any code referenced by the EVM state is present in [clientTrieDB] and the hash is correct.
-func assertDBConsistency(t testing.TB, root common.Hash, clientDB ethdb.Database, serverTrieDB, clientTrieDB *trie.Database) {
+func assertDBConsistency(t testing.TB, root common.Hash, serverTrieDB, clientTrieDB *trie.Database) {
+	clientDB := clientTrieDB.DiskDB()
 	numSnapshotAccounts := 0
 	accountIt := rawdb.IterateAccountSnapshots(clientDB)
 	defer accountIt.Release()
@@ -38,7 +38,7 @@ func assertDBConsistency(t testing.TB, root common.Hash, clientDB ethdb.Database
 	}
 	trieAccountLeaves := 0
 
-	syncutils.AssertTrieConsistency(t, root, serverTrieDB, clientTrieDB, func(key, val []byte) error {
+	trie.AssertTrieConsistency(t, root, serverTrieDB, clientTrieDB, func(key, val []byte) error {
 		trieAccountLeaves++
 		accHash := common.BytesToHash(key)
 		var acc types.StateAccount
@@ -46,14 +46,14 @@ func assertDBConsistency(t testing.TB, root common.Hash, clientDB ethdb.Database
 			return err
 		}
 		// check snapshot consistency
-		snapshotVal := rawdb.ReadAccountSnapshot(clientDB, accHash)
-		expectedSnapshotVal := types.SlimAccountRLP(acc)
+		snapshotVal := rawdb.ReadAccountSnapshot(clientTrieDB.DiskDB(), accHash)
+		expectedSnapshotVal := snapshot.SlimAccountRLP(acc.Nonce, acc.Balance, acc.Root, acc.CodeHash, acc.IsMultiCoin)
 		assert.Equal(t, expectedSnapshotVal, snapshotVal)
 
 		// check code consistency
 		if !bytes.Equal(acc.CodeHash, types.EmptyCodeHash[:]) {
 			codeHash := common.BytesToHash(acc.CodeHash)
-			code := rawdb.ReadCode(clientDB, codeHash)
+			code := rawdb.ReadCode(clientTrieDB.DiskDB(), codeHash)
 			actualHash := crypto.Keccak256Hash(code)
 			assert.NotZero(t, len(code))
 			assert.Equal(t, codeHash, actualHash)
@@ -73,9 +73,9 @@ func assertDBConsistency(t testing.TB, root common.Hash, clientDB ethdb.Database
 		storageTrieLeavesCount := 0
 
 		// check storage trie and storage snapshot consistency
-		syncutils.AssertTrieConsistency(t, acc.Root, serverTrieDB, clientTrieDB, func(key, val []byte) error {
+		trie.AssertTrieConsistency(t, acc.Root, serverTrieDB, clientTrieDB, func(key, val []byte) error {
 			storageTrieLeavesCount++
-			snapshotVal := rawdb.ReadStorageSnapshot(clientDB, accHash, common.BytesToHash(key))
+			snapshotVal := rawdb.ReadStorageSnapshot(clientTrieDB.DiskDB(), accHash, common.BytesToHash(key))
 			assert.Equal(t, val, snapshotVal)
 			return nil
 		})
@@ -88,8 +88,8 @@ func assertDBConsistency(t testing.TB, root common.Hash, clientDB ethdb.Database
 	assert.Equal(t, trieAccountLeaves, numSnapshotAccounts)
 }
 
-func fillAccountsWithStorage(t *testing.T, serverDB ethdb.Database, serverTrieDB *trie.Database, root common.Hash, numAccounts int) common.Hash {
-	newRoot, _ := syncutils.FillAccounts(t, serverTrieDB, root, numAccounts, func(t *testing.T, index int, account types.StateAccount) types.StateAccount {
+func fillAccountsWithStorage(t *testing.T, serverTrieDB *trie.Database, root common.Hash, numAccounts int) common.Hash {
+	newRoot, _ := trie.FillAccounts(t, serverTrieDB, root, numAccounts, func(t *testing.T, index int, account types.StateAccount) types.StateAccount {
 		codeBytes := make([]byte, 256)
 		_, err := rand.Read(codeBytes)
 		if err != nil {
@@ -97,12 +97,12 @@ func fillAccountsWithStorage(t *testing.T, serverDB ethdb.Database, serverTrieDB
 		}
 
 		codeHash := crypto.Keccak256Hash(codeBytes)
-		rawdb.WriteCode(serverDB, codeHash, codeBytes)
+		rawdb.WriteCode(serverTrieDB.DiskDB(), codeHash, codeBytes)
 		account.CodeHash = codeHash[:]
 
 		// now create state trie
 		numKeys := 16
-		account.Root, _, _ = syncutils.GenerateTrie(t, serverTrieDB, numKeys, common.HashLength)
+		account.Root, _, _ = trie.GenerateTrie(t, serverTrieDB, numKeys, common.HashLength)
 		return account
 	})
 	return newRoot
@@ -119,18 +119,18 @@ func FillAccountsWithOverlappingStorage(
 ) (common.Hash, map[*keystore.Key]*types.StateAccount) {
 	storageRoots := make([]common.Hash, 0, numOverlappingStorageRoots)
 	for i := 0; i < numOverlappingStorageRoots; i++ {
-		storageRoot, _, _ := syncutils.GenerateTrie(t, trieDB, 16, common.HashLength)
+		storageRoot, _, _ := trie.GenerateTrie(t, trieDB, 16, common.HashLength)
 		storageRoots = append(storageRoots, storageRoot)
 	}
 	storageRootIndex := 0
-	return syncutils.FillAccounts(t, trieDB, root, numAccounts, func(t *testing.T, i int, account types.StateAccount) types.StateAccount {
+	return trie.FillAccounts(t, trieDB, root, numAccounts, func(t *testing.T, i int, account types.StateAccount) types.StateAccount {
 		switch i % 3 {
 		case 0: // unmodified account
 		case 1: // account with overlapping storage root
 			account.Root = storageRoots[storageRootIndex%numOverlappingStorageRoots]
 			storageRootIndex++
 		case 2: // account with unique storage root
-			account.Root, _, _ = syncutils.GenerateTrie(t, trieDB, 16, common.HashLength)
+			account.Root, _, _ = trie.GenerateTrie(t, trieDB, 16, common.HashLength)
 		}
 
 		return account

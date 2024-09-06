@@ -1,69 +1,68 @@
 // (c) 2021-2022, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package syncutils
+package handlers
 
 import (
-	"github.com/ava-labs/coreth/core/state/snapshot"
-	"github.com/ava-labs/coreth/core/types"
-	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/tenderly/coreth/core/state/snapshot"
+	"github.com/tenderly/coreth/ethdb"
 )
 
 var (
-	_ ethdb.Iterator = &AccountIterator{}
-	_ ethdb.Iterator = &StorageIterator{}
+	_ ethdb.Iterator = &accountIt{}
+	_ ethdb.Iterator = &storageIt{}
 )
 
-// AccountIterator wraps a [snapshot.AccountIterator] to conform to [ethdb.Iterator]
+// accountIt wraps a [snapshot.AccountIterator] to conform to [ethdb.Iterator]
 // accounts will be returned in consensus (FullRLP) format for compatibility with trie data.
-type AccountIterator struct {
+type accountIt struct {
 	snapshot.AccountIterator
 	err error
 	val []byte
 }
 
-func (it *AccountIterator) Next() bool {
+func (it *accountIt) Next() bool {
 	if it.err != nil {
 		return false
 	}
 	for it.AccountIterator.Next() {
-		it.val, it.err = types.FullAccountRLP(it.Account())
+		it.val, it.err = snapshot.FullAccountRLP(it.Account())
 		return it.err == nil
 	}
 	it.val = nil
 	return false
 }
 
-func (it *AccountIterator) Key() []byte {
+func (it *accountIt) Key() []byte {
 	if it.err != nil {
 		return nil
 	}
 	return it.Hash().Bytes()
 }
 
-func (it *AccountIterator) Value() []byte {
+func (it *accountIt) Value() []byte {
 	if it.err != nil {
 		return nil
 	}
 	return it.val
 }
 
-func (it *AccountIterator) Error() error {
+func (it *accountIt) Error() error {
 	if it.err != nil {
 		return it.err
 	}
 	return it.AccountIterator.Error()
 }
 
-// StorageIterator wraps a [snapshot.StorageIterator] to conform to [ethdb.Iterator]
-type StorageIterator struct {
+// storageIt wraps a [snapshot.StorageIterator] to conform to [ethdb.Iterator]
+type storageIt struct {
 	snapshot.StorageIterator
 }
 
-func (it *StorageIterator) Key() []byte {
+func (it *storageIt) Key() []byte {
 	return it.Hash().Bytes()
 }
 
-func (it *StorageIterator) Value() []byte {
+func (it *storageIt) Value() []byte {
 	return it.Slot()
 }

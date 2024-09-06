@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/tenderly/coreth/ethdb"
 )
 
 // ReadSnapshotRoot retrieves the root of the block whose state is contained in

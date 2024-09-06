@@ -31,10 +31,10 @@ import (
 	"errors"
 	"os"
 
-	"github.com/ava-labs/coreth/core/rawdb"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	bloomfilter "github.com/holiman/bloomfilter/v2"
+	"github.com/tenderly/coreth/core/rawdb"
 )
 
 // stateBloomHasher is a wrapper around a byte blob to satisfy the interface API

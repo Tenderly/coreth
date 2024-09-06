@@ -37,11 +37,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ava-labs/coreth/accounts"
-	mapset "github.com/deckarep/golang-set/v2"
+	"github.com/tenderly/coreth/accounts"
+	mapset "github.com/deckarep/golang-set"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"golang.org/x/exp/slices"
 )
 
 // Minimum amount of time between cache reloads. This limit applies if the platform does
@@ -49,10 +48,11 @@ import (
 // exist yet, the code will attempt to create a watcher at most this often.
 const minReloadInterval = 2 * time.Second
 
-// byURL defines the sorting order for accounts.
-func byURL(a, b accounts.Account) int {
-	return a.URL.Cmp(b.URL)
-}
+type accountsByURL []accounts.Account
+
+func (s accountsByURL) Len() int           { return len(s) }
+func (s accountsByURL) Less(i, j int) bool { return s[i].URL.Cmp(s[j].URL) < 0 }
+func (s accountsByURL) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 // AmbiguousAddrError is returned when attempting to unlock
 // an address for which more than one file exists.
@@ -77,7 +77,7 @@ type accountCache struct {
 	keydir   string
 	watcher  *watcher
 	mu       sync.Mutex
-	all      []accounts.Account
+	all      accountsByURL
 	byAddr   map[common.Address][]accounts.Account
 	throttle *time.Timer
 	notify   chan struct{}
@@ -89,7 +89,7 @@ func newAccountCache(keydir string) (*accountCache, chan struct{}) {
 		keydir: keydir,
 		byAddr: make(map[common.Address][]accounts.Account),
 		notify: make(chan struct{}, 1),
-		fileC:  fileCache{all: mapset.NewThreadUnsafeSet[string]()},
+		fileC:  fileCache{all: mapset.NewThreadUnsafeSet()},
 	}
 	ac.watcher = newWatcher(ac)
 	return ac, ac.notify
@@ -156,14 +156,6 @@ func (ac *accountCache) deleteByFile(path string) {
 	}
 }
 
-// watcherStarted returns true if the watcher loop started running (even if it
-// has since also ended).
-func (ac *accountCache) watcherStarted() bool {
-	ac.mu.Lock()
-	defer ac.mu.Unlock()
-	return ac.watcher.running || ac.watcher.runEnded
-}
-
 func removeAccount(slice []accounts.Account, elem accounts.Account) []accounts.Account {
 	for i := range slice {
 		if slice[i] == elem {
@@ -204,7 +196,7 @@ func (ac *accountCache) find(a accounts.Account) (accounts.Account, error) {
 	default:
 		err := &AmbiguousAddrError{Addr: a.Address, Matches: make([]accounts.Account, len(matches))}
 		copy(err.Matches, matches)
-		slices.SortFunc(err.Matches, byURL)
+		sort.Sort(accountsByURL(err.Matches))
 		return accounts.Account{}, err
 	}
 }
@@ -293,15 +285,16 @@ func (ac *accountCache) scanAccounts() error {
 	// Process all the file diffs
 	start := time.Now()
 
-	for _, path := range creates.ToSlice() {
-		if a := readAccount(path); a != nil {
+	for _, p := range creates.ToSlice() {
+		if a := readAccount(p.(string)); a != nil {
 			ac.add(*a)
 		}
 	}
-	for _, path := range deletes.ToSlice() {
-		ac.deleteByFile(path)
+	for _, p := range deletes.ToSlice() {
+		ac.deleteByFile(p.(string))
 	}
-	for _, path := range updates.ToSlice() {
+	for _, p := range updates.ToSlice() {
+		path := p.(string)
 		ac.deleteByFile(path)
 		if a := readAccount(path); a != nil {
 			ac.add(*a)

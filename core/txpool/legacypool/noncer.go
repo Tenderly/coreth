@@ -29,8 +29,8 @@ package legacypool
 import (
 	"sync"
 
-	"github.com/ava-labs/coreth/core/state"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/tenderly/coreth/core/state"
 )
 
 // noncer is a tiny virtual state database to manage the executable nonces of

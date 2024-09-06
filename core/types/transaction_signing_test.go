@@ -27,13 +27,12 @@
 package types
 
 import (
-	"errors"
 	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/tenderly/coreth/rlp"
 )
 
 func TestEIP155Signing(t *testing.T) {
@@ -122,9 +121,6 @@ func TestEIP155SigningVitalik(t *testing.T) {
 		if from != addr {
 			t.Errorf("%d: expected %x got %x", i, addr, from)
 		}
-		if !tx.Protected() {
-			t.Errorf("%d: expected to be protected", i)
-		}
 	}
 }
 
@@ -140,8 +136,8 @@ func TestChainId(t *testing.T) {
 	}
 
 	_, err = Sender(NewEIP155Signer(big.NewInt(2)), tx)
-	if !errors.Is(err, ErrInvalidChainId) {
-		t.Error("expected error:", ErrInvalidChainId, err)
+	if err != ErrInvalidChainId {
+		t.Error("expected error:", ErrInvalidChainId)
 	}
 
 	_, err = Sender(NewEIP155Signer(big.NewInt(1)), tx)

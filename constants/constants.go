@@ -6,8 +6,8 @@ package constants
 import "github.com/ethereum/go-ethereum/common"
 
 var (
-	BlackholeAddr = common.Address{
-		1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	}
+    BlackholeAddr = common.Address{
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    }
 )

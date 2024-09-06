@@ -10,13 +10,15 @@ import (
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
 
-	"github.com/ava-labs/coreth/core/rawdb"
-	"github.com/ava-labs/coreth/plugin/evm/message"
-	"github.com/ava-labs/coreth/sync/handlers/stats"
+	"github.com/tenderly/coreth/core/rawdb"
+	"github.com/tenderly/coreth/ethdb"
+	"github.com/tenderly/coreth/plugin/evm/message"
+	"github.com/tenderly/coreth/sync/handlers/stats"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+const maxCodeHashesPerRequest = 5
 
 // CodeRequestHandler is a peer.RequestHandler for message.CodeRequest
 // serving requested contract code bytes
@@ -49,7 +51,7 @@ func (n *CodeRequestHandler) OnCodeRequest(_ context.Context, nodeID ids.NodeID,
 		n.stats.UpdateCodeReadTime(time.Since(startTime))
 	}()
 
-	if len(codeRequest.Hashes) > message.MaxCodeHashesPerRequest {
+	if len(codeRequest.Hashes) > maxCodeHashesPerRequest {
 		n.stats.IncTooManyHashesRequested()
 		log.Debug("too many hashes requested, dropping request", "nodeID", nodeID, "requestID", requestID, "numHashes", len(codeRequest.Hashes))
 		return nil, nil
@@ -75,7 +77,7 @@ func (n *CodeRequestHandler) OnCodeRequest(_ context.Context, nodeID ids.NodeID,
 	codeResponse := message.CodeResponse{Data: codeBytes}
 	responseBytes, err := n.codec.Marshal(message.Version, codeResponse)
 	if err != nil {
-		log.Error("could not marshal CodeResponse, dropping request", "nodeID", nodeID, "requestID", requestID, "request", codeRequest, "err", err)
+		log.Warn("could not marshal CodeResponse, dropping request", "nodeID", nodeID, "requestID", requestID, "request", codeRequest, "err", err)
 		return nil, nil
 	}
 	n.stats.UpdateCodeBytesReturned(uint32(totalBytes))

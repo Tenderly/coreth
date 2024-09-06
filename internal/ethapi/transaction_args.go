@@ -33,10 +33,8 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ava-labs/coreth/core"
-	"github.com/ava-labs/coreth/core/types"
-	"github.com/ava-labs/coreth/params"
-	"github.com/ava-labs/coreth/rpc"
+	"github.com/tenderly/coreth/core/types"
+	"github.com/tenderly/coreth/rpc"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -87,8 +85,56 @@ func (args *TransactionArgs) data() []byte {
 
 // setDefaults fills in default values for unspecified tx fields.
 func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
-	if err := args.setFeeDefaults(ctx, b); err != nil {
-		return err
+	if args.GasPrice != nil && (args.MaxFeePerGas != nil || args.MaxPriorityFeePerGas != nil) {
+		return errors.New("both gasPrice and (maxFeePerGas or maxPriorityFeePerGas) specified")
+	}
+	// After london, default to 1559 unless gasPrice is set
+	head := b.CurrentHeader()
+	// If user specifies both maxPriorityfee and maxFee, then we do not
+	// need to consult the chain for defaults. It's definitely a London tx.
+	if args.MaxPriorityFeePerGas == nil || args.MaxFeePerGas == nil {
+		// In this clause, user left some fields unspecified.
+		if b.ChainConfig().IsApricotPhase3(new(big.Int).SetUint64(head.Time)) && args.GasPrice == nil {
+			if args.MaxPriorityFeePerGas == nil {
+				tip, err := b.SuggestGasTipCap(ctx)
+				if err != nil {
+					return err
+				}
+				args.MaxPriorityFeePerGas = (*hexutil.Big)(tip)
+			}
+			if args.MaxFeePerGas == nil {
+				gasFeeCap := new(big.Int).Add(
+					(*big.Int)(args.MaxPriorityFeePerGas),
+					new(big.Int).Mul(head.BaseFee, big.NewInt(2)),
+				)
+				args.MaxFeePerGas = (*hexutil.Big)(gasFeeCap)
+			}
+			if args.MaxFeePerGas.ToInt().Cmp(args.MaxPriorityFeePerGas.ToInt()) < 0 {
+				return fmt.Errorf("maxFeePerGas (%v) < maxPriorityFeePerGas (%v)", args.MaxFeePerGas, args.MaxPriorityFeePerGas)
+			}
+		} else {
+			if args.MaxFeePerGas != nil || args.MaxPriorityFeePerGas != nil {
+				return errors.New("maxFeePerGas or maxPriorityFeePerGas specified but london is not active yet")
+			}
+			if args.GasPrice == nil {
+				price, err := b.SuggestGasTipCap(ctx)
+				if err != nil {
+					return err
+				}
+				if b.ChainConfig().IsApricotPhase3(new(big.Int).SetUint64(head.Time)) {
+					// The legacy tx gas price suggestion should not add 2x base fee
+					// because all fees are consumed, so it would result in a spiral
+					// upwards.
+					price.Add(price, head.BaseFee)
+				}
+				args.GasPrice = (*hexutil.Big)(price)
+			}
+		}
+	} else {
+		// Both maxPriorityfee and maxFee set by caller. Sanity-check their internal relation
+		if args.MaxFeePerGas.ToInt().Cmp(args.MaxPriorityFeePerGas.ToInt()) < 0 {
+			return fmt.Errorf("maxFeePerGas (%v) < maxPriorityFeePerGas (%v)", args.MaxFeePerGas, args.MaxPriorityFeePerGas)
+		}
 	}
 	if args.Value == nil {
 		args.Value = new(hexutil.Big)
@@ -122,110 +168,16 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
 			AccessList:           args.AccessList,
 		}
 		pendingBlockNr := rpc.BlockNumberOrHashWithNumber(rpc.PendingBlockNumber)
-		estimated, err := DoEstimateGas(ctx, b, callArgs, pendingBlockNr, nil, b.RPCGasCap())
+		estimated, err := DoEstimateGas(ctx, b, callArgs, pendingBlockNr, b.RPCGasCap())
 		if err != nil {
 			return err
 		}
 		args.Gas = &estimated
 		log.Trace("Estimate gas usage automatically", "gas", args.Gas)
 	}
-	// If chain id is provided, ensure it matches the local chain id. Otherwise, set the local
-	// chain id as the default.
-	want := b.ChainConfig().ChainID
-	if args.ChainID != nil {
-		if have := (*big.Int)(args.ChainID); have.Cmp(want) != 0 {
-			return fmt.Errorf("chainId does not match node's (have=%v, want=%v)", have, want)
-		}
-	} else {
-		args.ChainID = (*hexutil.Big)(want)
-	}
-	return nil
-}
-
-type feeBackend interface {
-	SuggestGasTipCap(ctx context.Context) (*big.Int, error)
-	CurrentHeader() *types.Header
-	ChainConfig() *params.ChainConfig
-}
-
-// setFeeDefaults fills in default fee values for unspecified tx fields.
-func (args *TransactionArgs) setFeeDefaults(ctx context.Context, b feeBackend) error {
-	// If both gasPrice and at least one of the EIP-1559 fee parameters are specified, error.
-	if args.GasPrice != nil && (args.MaxFeePerGas != nil || args.MaxPriorityFeePerGas != nil) {
-		return errors.New("both gasPrice and (maxFeePerGas or maxPriorityFeePerGas) specified")
-	}
-	// If the tx has completely specified a fee mechanism, no default is needed.
-	// This allows users who are not yet synced past London to get defaults for
-	// other tx values. See https://github.com/ethereum/go-ethereum/pull/23274
-	// for more information.
-	eip1559ParamsSet := args.MaxFeePerGas != nil && args.MaxPriorityFeePerGas != nil
-
-	// Sanity check the EIP-1559 fee parameters if present.
-	if args.GasPrice == nil && eip1559ParamsSet {
-		if args.MaxFeePerGas.ToInt().Sign() == 0 {
-			return errors.New("maxFeePerGas must be non-zero")
-		}
-		if args.MaxFeePerGas.ToInt().Cmp(args.MaxPriorityFeePerGas.ToInt()) < 0 {
-			return fmt.Errorf("maxFeePerGas (%v) < maxPriorityFeePerGas (%v)", args.MaxFeePerGas, args.MaxPriorityFeePerGas)
-		}
-		return nil // No need to set anything, user already set MaxFeePerGas and MaxPriorityFeePerGas
-	}
-	// Sanity check the non-EIP-1559 fee parameters.
-	head := b.CurrentHeader()
-	isLondon := b.ChainConfig().IsApricotPhase3(head.Time)
-	if args.GasPrice != nil && !eip1559ParamsSet {
-		// Zero gas-price is not allowed after London fork
-		if args.GasPrice.ToInt().Sign() == 0 && isLondon {
-			return errors.New("gasPrice must be non-zero after london fork")
-		}
-		return nil // No need to set anything, user already set GasPrice
-	}
-
-	// Now attempt to fill in default value depending on whether London is active or not.
-	if isLondon {
-		// London is active, set maxPriorityFeePerGas and maxFeePerGas.
-		if err := args.setApricotPhase3FeeDefault(ctx, head, b); err != nil {
-			return err
-		}
-	} else {
-		if args.MaxFeePerGas != nil || args.MaxPriorityFeePerGas != nil {
-			return errors.New("maxFeePerGas and maxPriorityFeePerGas are not valid before London is active")
-		}
-		if args.GasPrice == nil {
-			price, err := b.SuggestGasTipCap(ctx)
-			if err != nil {
-				return err
-			}
-			args.GasPrice = (*hexutil.Big)(price)
-		}
-	}
-	return nil
-}
-
-// setApricotPhase3FeeDefault fills in reasonable default fee values for unspecified fields.
-func (args *TransactionArgs) setApricotPhase3FeeDefault(ctx context.Context, head *types.Header, b feeBackend) error {
-	// Set maxPriorityFeePerGas if it is missing.
-	if args.MaxPriorityFeePerGas == nil {
-		tip, err := b.SuggestGasTipCap(ctx)
-		if err != nil {
-			return err
-		}
-		args.MaxPriorityFeePerGas = (*hexutil.Big)(tip)
-	}
-	// Set maxFeePerGas if it is missing.
-	if args.MaxFeePerGas == nil {
-		// Set the max fee to be 2 times larger than the previous block's base fee.
-		// The additional slack allows the tx to not become invalidated if the base
-		// fee is rising.
-		gasFeeCap := new(big.Int).Add(
-			(*big.Int)(args.MaxPriorityFeePerGas),
-			new(big.Int).Mul(head.BaseFee, big.NewInt(2)),
-		)
-		args.MaxFeePerGas = (*hexutil.Big)(gasFeeCap)
-	}
-	// Both EIP-1559 fee parameters are now set; sanity check them.
-	if args.MaxFeePerGas.ToInt().Cmp(args.MaxPriorityFeePerGas.ToInt()) < 0 {
-		return fmt.Errorf("maxFeePerGas (%v) < maxPriorityFeePerGas (%v)", args.MaxFeePerGas, args.MaxPriorityFeePerGas)
+	if args.ChainID == nil {
+		id := (*hexutil.Big)(b.ChainConfig().ChainID)
+		args.ChainID = id
 	}
 	return nil
 }
@@ -233,10 +185,10 @@ func (args *TransactionArgs) setApricotPhase3FeeDefault(ctx context.Context, hea
 // ToMessage converts the transaction arguments to the Message type used by the
 // core evm. This method is used in calls and traces that do not require a real
 // live transaction.
-func (args *TransactionArgs) ToMessage(globalGasCap uint64, baseFee *big.Int) (*core.Message, error) {
+func (args *TransactionArgs) ToMessage(globalGasCap uint64, baseFee *big.Int) (types.Message, error) {
 	// Reject invalid combinations of pre- and post-1559 fee styles
 	if args.GasPrice != nil && (args.MaxFeePerGas != nil || args.MaxPriorityFeePerGas != nil) {
-		return nil, errors.New("both gasPrice and (maxFeePerGas or maxPriorityFeePerGas) specified")
+		return types.Message{}, errors.New("both gasPrice and (maxFeePerGas or maxPriorityFeePerGas) specified")
 	}
 	// Set sender address or use zero address if none specified.
 	addr := args.from()
@@ -250,7 +202,7 @@ func (args *TransactionArgs) ToMessage(globalGasCap uint64, baseFee *big.Int) (*
 		gas = uint64(*args.Gas)
 	}
 	if globalGasCap != 0 && globalGasCap < gas {
-		log.Info("Caller gas above allowance, capping", "requested", gas, "cap", globalGasCap)
+		log.Warn("Caller gas above allowance, capping", "requested", gas, "cap", globalGasCap)
 		gas = globalGasCap
 	}
 	var (
@@ -272,7 +224,7 @@ func (args *TransactionArgs) ToMessage(globalGasCap uint64, baseFee *big.Int) (*
 			gasPrice = args.GasPrice.ToInt()
 			gasFeeCap, gasTipCap = gasPrice, gasPrice
 		} else {
-			// User specified 1559 gas fields (or none), use those
+			// User specified 1559 gas feilds (or none), use those
 			gasFeeCap = new(big.Int)
 			if args.MaxFeePerGas != nil {
 				gasFeeCap = args.MaxFeePerGas.ToInt()
@@ -297,18 +249,7 @@ func (args *TransactionArgs) ToMessage(globalGasCap uint64, baseFee *big.Int) (*
 	if args.AccessList != nil {
 		accessList = *args.AccessList
 	}
-	msg := &core.Message{
-		From:              addr,
-		To:                args.To,
-		Value:             value,
-		GasLimit:          gas,
-		GasPrice:          gasPrice,
-		GasFeeCap:         gasFeeCap,
-		GasTipCap:         gasTipCap,
-		Data:              data,
-		AccessList:        accessList,
-		SkipAccountChecks: true,
-	}
+	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, gasFeeCap, gasTipCap, data, accessList, true)
 	return msg, nil
 }
 

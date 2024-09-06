@@ -32,21 +32,20 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ava-labs/coreth/core"
-	"github.com/ava-labs/coreth/core/types"
-	"github.com/stretchr/testify/require"
+	"github.com/tenderly/coreth/core"
+	"github.com/tenderly/coreth/core/types"
 
-	"github.com/ava-labs/coreth/params"
-	"github.com/ava-labs/coreth/rpc"
+	"github.com/tenderly/coreth/params"
+	"github.com/tenderly/coreth/rpc"
 	"github.com/ethereum/go-ethereum/common"
 )
 
 func TestFeeHistory(t *testing.T) {
 	var cases = []struct {
 		pending      bool
-		maxCallBlock uint64
-		maxBlock     uint64
-		count        uint64
+		maxCallBlock int
+		maxBlock     int
+		count        int
 		last         rpc.BlockNumber
 		percent      []float64
 		expFirst     uint64
@@ -82,6 +81,7 @@ func TestFeeHistory(t *testing.T) {
 		}
 		tip := big.NewInt(1 * params.GWei)
 		backend := newTestBackendFakerEngine(t, params.TestChainConfig, 32, common.Big0, func(i int, b *core.BlockGen) {
+
 			signer := types.LatestSigner(params.TestChainConfig)
 
 			b.SetCoinbase(common.Address{1})
@@ -106,11 +106,10 @@ func TestFeeHistory(t *testing.T) {
 			}
 			b.AddTx(tx)
 		})
-		oracle, err := NewOracle(backend, config)
-		require.NoError(t, err)
+		oracle := NewOracle(backend, config)
 
 		first, reward, baseFee, ratio, err := oracle.FeeHistory(context.Background(), c.count, c.last, c.percent)
-		backend.teardown()
+
 		expReward := c.expCount
 		if len(c.percent) == 0 {
 			expReward = 0

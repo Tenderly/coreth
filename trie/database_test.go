@@ -27,24 +27,17 @@
 package trie
 
 import (
-	"github.com/ava-labs/coreth/core/rawdb"
-	"github.com/ava-labs/coreth/trie/triedb/hashdb"
-	"github.com/ava-labs/coreth/trie/triedb/pathdb"
-	"github.com/ethereum/go-ethereum/ethdb"
+	"testing"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/tenderly/coreth/ethdb/memorydb"
 )
 
-// newTestDatabase initializes the trie database with specified scheme.
-func newTestDatabase(diskdb ethdb.Database, scheme string) *Database {
-	config := &Config{Preimages: false}
-	if scheme == rawdb.HashScheme {
-		config.HashDB = &hashdb.Config{
-			CleanCacheSize: 0,
-		} // disable clean cache
-	} else {
-		config.PathDB = &pathdb.Config{
-			CleanCacheSize: 0,
-			DirtyCacheSize: 0,
-		} // disable clean/dirty cache
+// Tests that the trie database returns a missing trie node error if attempting
+// to retrieve the meta root.
+func TestDatabaseMetarootFetch(t *testing.T) {
+	db := NewDatabase(memorydb.New())
+	if _, err := db.RawNode(common.Hash{}); err == nil {
+		t.Fatalf("metaroot retrieval succeeded")
 	}
-	return NewDatabase(diskdb, config)
 }

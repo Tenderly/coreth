@@ -1,4 +1,4 @@
-// (c) 2023, Ava Labs, Inc.
+// (c) 2020-2021, Ava Labs, Inc.
 //
 // This file is a derived work, based on the go-ethereum library whose original
 // notices appear below.
@@ -8,7 +8,7 @@
 //
 // Much love to the original authors for their work.
 // **********
-// Copyright 2022 The go-ethereum Authors
+// Copyright 2018 The go-ethereum Authors
 // This file is part of the go-ethereum library.
 //
 // The go-ethereum library is free software: you can redistribute it and/or modify
@@ -24,22 +24,19 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package vm
+package memorydb
 
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	"github.com/tenderly/coreth/ethdb"
+	"github.com/tenderly/coreth/ethdb/dbtest"
 )
 
-// TestJumpTableCopy tests that deep copy is necessery to prevent modify shared jump table
-func TestJumpTableCopy(t *testing.T) {
-	tbl := newDurangoInstructionSet()
-	require.Equal(t, uint64(0), tbl[SLOAD].constantGas)
-
-	// a deep copy won't modify the shared jump table
-	deepCopy := copyJumpTable(&tbl)
-	deepCopy[SLOAD].constantGas = 100
-	require.Equal(t, uint64(100), deepCopy[SLOAD].constantGas)
-	require.Equal(t, uint64(0), tbl[SLOAD].constantGas)
+func TestMemoryDB(t *testing.T) {
+	t.Run("DatabaseSuite", func(t *testing.T) {
+		dbtest.TestDatabaseSuite(t, func() ethdb.KeyValueStore {
+			return New()
+		})
+	})
 }

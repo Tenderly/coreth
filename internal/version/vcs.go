@@ -1,4 +1,4 @@
-// (c) 2023, Ava Labs, Inc.
+// (c) 2019-2020, Ava Labs, Inc.
 //
 // This file is a derived work, based on the go-ethereum library whose original
 // notices appear below.
@@ -8,7 +8,7 @@
 //
 // Much love to the original authors for their work.
 // **********
-// Copyright 2022 The go-ethereum Authors
+// Copyright 2016 The go-ethereum Authors
 // This file is part of the go-ethereum library.
 //
 // The go-ethereum library is free software: you can redistribute it and/or modify
@@ -24,39 +24,28 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package version
+package node
 
 import (
-	"runtime/debug"
-	"time"
+	"github.com/tenderly/coreth/rpc"
 )
-
-// In go 1.18 and beyond, the go tool embeds VCS information into the build.
 
 const (
-	govcsTimeLayout = "2006-01-02T15:04:05Z"
-	ourTimeLayout   = "20060102"
+	DefaultHTTPHost    = "localhost" // Default host interface for the HTTP RPC server
+	DefaultHTTPPort    = 8545        // Default TCP port for the HTTP RPC server
+	DefaultWSHost      = "localhost" // Default host interface for the websocket RPC server
+	DefaultWSPort      = 8546        // Default TCP port for the websocket RPC server
+	DefaultGraphQLHost = "localhost" // Default host interface for the GraphQL server
+	DefaultGraphQLPort = 8547        // Default TCP port for the GraphQL server
 )
 
-// buildInfoVCS returns VCS information of the build.
-func buildInfoVCS(info *debug.BuildInfo) (s VCSInfo, ok bool) {
-	for _, v := range info.Settings {
-		switch v.Key {
-		case "vcs.revision":
-			s.Commit = v.Value
-		case "vcs.modified":
-			if v.Value == "true" {
-				s.Dirty = true
-			}
-		case "vcs.time":
-			t, err := time.Parse(govcsTimeLayout, v.Value)
-			if err == nil {
-				s.Date = t.Format(ourTimeLayout)
-			}
-		}
-	}
-	if s.Commit != "" && s.Date != "" {
-		ok = true
-	}
-	return
+// DefaultConfig contains reasonable default settings.
+var DefaultConfig = Config{
+	HTTPPort:            DefaultHTTPPort,
+	HTTPModules:         []string{"net", "web3"},
+	HTTPVirtualHosts:    []string{"localhost"},
+	HTTPTimeouts:        rpc.DefaultHTTPTimeouts,
+	WSPort:              DefaultWSPort,
+	WSModules:           []string{"net", "web3"},
+	GraphQLVirtualHosts: []string{"localhost"},
 }

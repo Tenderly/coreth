@@ -4,7 +4,6 @@
 package evm
 
 import (
-	"github.com/ava-labs/coreth/core/vm"
 	"math/big"
 	"math/rand"
 
@@ -15,12 +14,12 @@ import (
 	"github.com/ava-labs/avalanchego/codec/linearcodec"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/ava-labs/coreth/params"
+	"github.com/tenderly/coreth/core/state"
+	"github.com/tenderly/coreth/params"
 )
 
-type TestUnsignedTx struct {
+type TestTx struct {
 	GasUsedV                    uint64           `serialize:"true"`
 	AcceptRequestsBlockchainIDV ids.ID           `serialize:"true"`
 	AcceptRequestsV             *atomic.Requests `serialize:"true"`
@@ -28,50 +27,50 @@ type TestUnsignedTx struct {
 	IDV                         ids.ID `serialize:"true" json:"id"`
 	BurnedV                     uint64 `serialize:"true"`
 	UnsignedBytesV              []byte
-	SignedBytesV                []byte
-	InputUTXOsV                 set.Set[ids.ID]
+	BytesV                      []byte
+	InputUTXOsV                 ids.Set
 	SemanticVerifyV             error
 	EVMStateTransferV           error
 }
 
-var _ UnsignedAtomicTx = &TestUnsignedTx{}
+var _ UnsignedAtomicTx = &TestTx{}
 
 // GasUsed implements the UnsignedAtomicTx interface
-func (t *TestUnsignedTx) GasUsed(fixedFee bool) (uint64, error) { return t.GasUsedV, nil }
+func (t *TestTx) GasUsed(fixedFee bool) (uint64, error) { return t.GasUsedV, nil }
 
 // Verify implements the UnsignedAtomicTx interface
-func (t *TestUnsignedTx) Verify(ctx *snow.Context, rules params.Rules) error { return t.VerifyV }
+func (t *TestTx) Verify(ctx *snow.Context, rules params.Rules) error { return t.VerifyV }
 
 // AtomicOps implements the UnsignedAtomicTx interface
-func (t *TestUnsignedTx) AtomicOps() (ids.ID, *atomic.Requests, error) {
+func (t *TestTx) AtomicOps() (ids.ID, *atomic.Requests, error) {
 	return t.AcceptRequestsBlockchainIDV, t.AcceptRequestsV, nil
 }
 
 // Initialize implements the UnsignedAtomicTx interface
-func (t *TestUnsignedTx) Initialize(unsignedBytes, signedBytes []byte) {}
+func (t *TestTx) Initialize(unsignedBytes, signedBytes []byte) {}
 
 // ID implements the UnsignedAtomicTx interface
-func (t *TestUnsignedTx) ID() ids.ID { return t.IDV }
+func (t *TestTx) ID() ids.ID { return t.IDV }
 
 // Burned implements the UnsignedAtomicTx interface
-func (t *TestUnsignedTx) Burned(assetID ids.ID) (uint64, error) { return t.BurnedV, nil }
+func (t *TestTx) Burned(assetID ids.ID) (uint64, error) { return t.BurnedV, nil }
+
+// UnsignedBytes implements the UnsignedAtomicTx interface
+func (t *TestTx) UnsignedBytes() []byte { return t.UnsignedBytesV }
 
 // Bytes implements the UnsignedAtomicTx interface
-func (t *TestUnsignedTx) Bytes() []byte { return t.UnsignedBytesV }
-
-// SignedBytes implements the UnsignedAtomicTx interface
-func (t *TestUnsignedTx) SignedBytes() []byte { return t.SignedBytesV }
+func (t *TestTx) Bytes() []byte { return t.BytesV }
 
 // InputUTXOs implements the UnsignedAtomicTx interface
-func (t *TestUnsignedTx) InputUTXOs() set.Set[ids.ID] { return t.InputUTXOsV }
+func (t *TestTx) InputUTXOs() ids.Set { return t.InputUTXOsV }
 
 // SemanticVerify implements the UnsignedAtomicTx interface
-func (t *TestUnsignedTx) SemanticVerify(vm *VM, stx *Tx, parent *Block, baseFee *big.Int, rules params.Rules) error {
+func (t *TestTx) SemanticVerify(vm *VM, stx *Tx, parent *Block, baseFee *big.Int, rules params.Rules) error {
 	return t.SemanticVerifyV
 }
 
 // EVMStateTransfer implements the UnsignedAtomicTx interface
-func (t *TestUnsignedTx) EVMStateTransfer(ctx *snow.Context, state vm.StateDB) error {
+func (t *TestTx) EVMStateTransfer(ctx *snow.Context, state *state.StateDB) error {
 	return t.EVMStateTransferV
 }
 
@@ -81,7 +80,7 @@ func testTxCodec() codec.Manager {
 
 	errs := wrappers.Errs{}
 	errs.Add(
-		c.RegisterType(&TestUnsignedTx{}),
+		c.RegisterType(&TestTx{}),
 		c.RegisterType(&atomic.Element{}),
 		c.RegisterType(&atomic.Requests{}),
 		codec.RegisterCodec(codecVersion, c),
@@ -97,7 +96,7 @@ var blockChainID = ids.GenerateTestID()
 
 func testDataImportTx() *Tx {
 	return &Tx{
-		UnsignedAtomicTx: &TestUnsignedTx{
+		UnsignedAtomicTx: &TestTx{
 			IDV:                         ids.GenerateTestID(),
 			AcceptRequestsBlockchainIDV: blockChainID,
 			AcceptRequestsV: &atomic.Requests{
@@ -112,7 +111,7 @@ func testDataImportTx() *Tx {
 
 func testDataExportTx() *Tx {
 	return &Tx{
-		UnsignedAtomicTx: &TestUnsignedTx{
+		UnsignedAtomicTx: &TestTx{
 			IDV:                         ids.GenerateTestID(),
 			AcceptRequestsBlockchainIDV: blockChainID,
 			AcceptRequestsV: &atomic.Requests{

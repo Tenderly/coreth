@@ -33,13 +33,13 @@ import (
 	mrand "math/rand"
 	"sync/atomic"
 
-	"github.com/ava-labs/coreth/consensus"
-	"github.com/ava-labs/coreth/core/rawdb"
-	"github.com/ava-labs/coreth/core/types"
-	"github.com/ava-labs/coreth/params"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/lru"
-	"github.com/ethereum/go-ethereum/ethdb"
+	lru "github.com/hashicorp/golang-lru"
+	"github.com/tenderly/coreth/consensus"
+	"github.com/tenderly/coreth/core/rawdb"
+	"github.com/tenderly/coreth/core/types"
+	"github.com/tenderly/coreth/ethdb"
+	"github.com/tenderly/coreth/params"
 )
 
 const (
@@ -70,9 +70,9 @@ type HeaderChain struct {
 	currentHeader     atomic.Value // Current head of the header chain (may be above the block chain!)
 	currentHeaderHash common.Hash  // Hash of the current head of the header chain (prevent recomputing all the time)
 
-	headerCache         *lru.Cache[common.Hash, *types.Header]
-	numberCache         *lru.Cache[common.Hash, uint64]  // most recent block numbers
-	acceptedNumberCache FIFOCache[uint64, *types.Header] // most recent accepted heights to headers (only modified in accept)
+	headerCache *lru.Cache // Cache for the most recent block headers
+	tdCache     *lru.Cache // Cache for the most recent block total difficulties
+	numberCache *lru.Cache // Cache for the most recent block numbers
 
 	rand   *mrand.Rand
 	engine consensus.Engine
@@ -80,8 +80,10 @@ type HeaderChain struct {
 
 // NewHeaderChain creates a new HeaderChain structure. ProcInterrupt points
 // to the parent's interrupt semaphore.
-func NewHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, cacheConfig *CacheConfig, engine consensus.Engine) (*HeaderChain, error) {
-	acceptedNumberCache := NewFIFOCache[uint64, *types.Header](cacheConfig.AcceptedCacheSize)
+func NewHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, engine consensus.Engine) (*HeaderChain, error) {
+	headerCache, _ := lru.New(headerCacheLimit)
+	tdCache, _ := lru.New(tdCacheLimit)
+	numberCache, _ := lru.New(numberCacheLimit)
 
 	// Seed a fast but crypto originating random generator
 	seed, err := crand.Int(crand.Reader, big.NewInt(math.MaxInt64))
@@ -90,13 +92,13 @@ func NewHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, cacheCon
 	}
 
 	hc := &HeaderChain{
-		config:              config,
-		chainDb:             chainDb,
-		headerCache:         lru.NewCache[common.Hash, *types.Header](headerCacheLimit),
-		numberCache:         lru.NewCache[common.Hash, uint64](numberCacheLimit),
-		acceptedNumberCache: acceptedNumberCache,
-		rand:                mrand.New(mrand.NewSource(seed.Int64())),
-		engine:              engine,
+		config:      config,
+		chainDb:     chainDb,
+		headerCache: headerCache,
+		tdCache:     tdCache,
+		numberCache: numberCache,
+		rand:        mrand.New(mrand.NewSource(seed.Int64())),
+		engine:      engine,
 	}
 
 	hc.genesisHeader = hc.GetHeaderByNumber(0)
@@ -119,7 +121,8 @@ func NewHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, cacheCon
 // from the cache or database
 func (hc *HeaderChain) GetBlockNumber(hash common.Hash) *uint64 {
 	if cached, ok := hc.numberCache.Get(hash); ok {
-		return &cached
+		number := cached.(uint64)
+		return &number
 	}
 	number := rawdb.ReadHeaderNumber(hc.chainDb, hash)
 	if number != nil {
@@ -133,7 +136,7 @@ func (hc *HeaderChain) GetBlockNumber(hash common.Hash) *uint64 {
 func (hc *HeaderChain) GetHeader(hash common.Hash, number uint64) *types.Header {
 	// Short circuit if the header's already in the cache, retrieve otherwise
 	if header, ok := hc.headerCache.Get(hash); ok {
-		return header
+		return header.(*types.Header)
 	}
 	header := rawdb.ReadHeader(hc.chainDb, hash, number)
 	if header == nil {
@@ -167,9 +170,6 @@ func (hc *HeaderChain) HasHeader(hash common.Hash, number uint64) bool {
 // GetHeaderByNumber retrieves a block header from the database by number,
 // caching it (associated with its hash) if found.
 func (hc *HeaderChain) GetHeaderByNumber(number uint64) *types.Header {
-	if cachedHeader, ok := hc.acceptedNumberCache.Get(number); ok {
-		return cachedHeader
-	}
 	hash := rawdb.ReadCanonicalHash(hc.chainDb, number)
 	if hash == (common.Hash{}) {
 		return nil

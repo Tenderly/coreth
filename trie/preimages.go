@@ -29,9 +29,9 @@ package trie
 import (
 	"sync"
 
-	"github.com/ava-labs/coreth/core/rawdb"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/tenderly/coreth/core/rawdb"
+	"github.com/tenderly/coreth/ethdb"
 )
 
 const defaultPreimagesLimit = 4 * 1024 * 1024 // 4 MB

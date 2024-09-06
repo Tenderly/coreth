@@ -34,15 +34,12 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ava-labs/coreth/consensus/dummy"
-	"github.com/ava-labs/coreth/core/rawdb"
-	"github.com/ava-labs/coreth/core/types"
-	"github.com/ava-labs/coreth/core/vm"
-	"github.com/ava-labs/coreth/params"
-	"github.com/ava-labs/coreth/trie"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/stretchr/testify/require"
+	"github.com/tenderly/coreth/consensus/dummy"
+	"github.com/tenderly/coreth/core/rawdb"
+	"github.com/tenderly/coreth/core/types"
+	"github.com/tenderly/coreth/core/vm"
+	"github.com/tenderly/coreth/params"
 )
 
 // rewindTest is a test case for chain rollback upon user request.
@@ -504,12 +501,6 @@ func testLongReorgedDeepRepair(t *testing.T, snapshots bool) {
 }
 
 func testRepair(t *testing.T, tt *rewindTest, snapshots bool) {
-	for _, scheme := range []string{rawdb.HashScheme, rawdb.PathScheme} {
-		testRepairWithScheme(t, tt, snapshots, scheme)
-	}
-}
-
-func testRepairWithScheme(t *testing.T, tt *rewindTest, snapshots bool, scheme string) {
 	// It's hard to follow the test case, visualize the input
 	//log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
 	// fmt.Println(tt.dump(true))
@@ -517,10 +508,7 @@ func testRepairWithScheme(t *testing.T, tt *rewindTest, snapshots bool, scheme s
 	// Create a temporary persistent database
 	datadir := t.TempDir()
 
-	db, err := rawdb.Open(rawdb.OpenOptions{
-		Directory: datadir,
-		Ephemeral: true,
-	})
+	db, err := rawdb.NewLevelDBDatabase(datadir, 0, 0, "", false)
 	if err != nil {
 		t.Fatalf("Failed to create persistent database: %v", err)
 	}
@@ -528,62 +516,38 @@ func testRepairWithScheme(t *testing.T, tt *rewindTest, snapshots bool, scheme s
 
 	// Initialize a fresh chain
 	var (
-		require = require.New(t)
-		key1, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
-		addr1   = crypto.PubkeyToAddress(key1.PublicKey)
-		gspec   = &Genesis{
-			BaseFee: big.NewInt(params.ApricotPhase3InitialBaseFee),
-			Config:  params.TestChainConfig,
-			Alloc:   GenesisAlloc{addr1: {Balance: big.NewInt(params.Ether)}},
-		}
-		signer = types.LatestSigner(gspec.Config)
-		engine = dummy.NewFullFaker()
-		config = &CacheConfig{
-			TrieCleanLimit:            256,
-			TrieDirtyLimit:            256,
-			TriePrefetcherParallelism: 4,
-			SnapshotLimit:             0, // Disable snapshot by default
-			StateScheme:               scheme,
+		genesis = (&Genesis{Config: params.TestChainConfig, BaseFee: big.NewInt(params.ApricotPhase3InitialBaseFee)}).MustCommit(db)
+		engine  = dummy.NewFullFaker()
+		config  = &CacheConfig{
+			TrieCleanLimit: 256,
+			TrieDirtyLimit: 256,
+			SnapshotLimit:  0, // Disable snapshot by default
 		}
 	)
 	defer engine.Close()
 	if snapshots {
 		config.SnapshotLimit = 256
-		config.SnapshotWait = true
 	}
-	chain, err := NewBlockChain(db, config, gspec, engine, vm.Config{}, common.Hash{}, false)
+	chain, err := NewBlockChain(db, config, params.TestChainConfig, engine, vm.Config{}, common.Hash{})
 	if err != nil {
 		t.Fatalf("Failed to create chain: %v", err)
 	}
-	defer chain.Stop()
 	lastAcceptedHash := chain.GetBlockByNumber(0).Hash()
 
 	// If sidechain blocks are needed, make a light chain and import it
 	var sideblocks types.Blocks
 	if tt.sidechainBlocks > 0 {
-		genDb := rawdb.NewMemoryDatabase()
-		gspec.MustCommit(genDb, trie.NewDatabase(genDb, nil))
-		sideblocks, _, err = GenerateChain(gspec.Config, gspec.ToBlock(), engine, genDb, tt.sidechainBlocks, 10, func(i int, b *BlockGen) {
+		sideblocks, _, _ = GenerateChain(params.TestChainConfig, genesis, engine, rawdb.NewMemoryDatabase(), tt.sidechainBlocks, 10, func(i int, b *BlockGen) {
 			b.SetCoinbase(common.Address{0x01})
-			tx, err := types.SignTx(types.NewTransaction(b.TxNonce(addr1), common.Address{0x01}, big.NewInt(10000), params.TxGas, dummy.ApricotPhase3InitialBaseFee, nil), signer, key1)
-			require.NoError(err)
-			b.AddTx(tx)
 		})
-		require.NoError(err)
 		if _, err := chain.InsertChain(sideblocks); err != nil {
 			t.Fatalf("Failed to import side chain: %v", err)
 		}
 	}
-	genDb := rawdb.NewMemoryDatabase()
-	gspec.MustCommit(genDb, trie.NewDatabase(genDb, nil))
-	canonblocks, _, err := GenerateChain(gspec.Config, gspec.ToBlock(), engine, genDb, tt.canonicalBlocks, 10, func(i int, b *BlockGen) {
+	canonblocks, _, _ := GenerateChain(params.TestChainConfig, genesis, engine, rawdb.NewMemoryDatabase(), tt.canonicalBlocks, 10, func(i int, b *BlockGen) {
 		b.SetCoinbase(common.Address{0x02})
 		b.SetDifficulty(big.NewInt(1000000))
-		tx, err := types.SignTx(types.NewTransaction(b.TxNonce(addr1), common.Address{0x02}, big.NewInt(10000), params.TxGas, dummy.ApricotPhase3InitialBaseFee, nil), signer, key1)
-		require.NoError(err)
-		b.AddTx(tx)
 	})
-	require.NoError(err)
 	if _, err := chain.InsertChain(canonblocks[:tt.commitBlock]); err != nil {
 		t.Fatalf("Failed to import canonical chain start: %v", err)
 	}
@@ -603,21 +567,16 @@ func testRepairWithScheme(t *testing.T, tt *rewindTest, snapshots bool, scheme s
 	}
 
 	// Pull the plug on the database, simulating a hard crash
-	chain.triedb.Close()
 	db.Close()
-	chain.stopWithoutSaving()
 
 	// Start a new blockchain back up and see where the repair leads us
-	db, err = rawdb.Open(rawdb.OpenOptions{
-		Directory: datadir,
-		Ephemeral: true,
-	})
+	db, err = rawdb.NewLevelDBDatabase(datadir, 0, 0, "", false)
 	if err != nil {
 		t.Fatalf("Failed to reopen persistent database: %v", err)
 	}
 	defer db.Close()
 
-	newChain, err := NewBlockChain(db, config, gspec, engine, vm.Config{}, lastAcceptedHash, false)
+	newChain, err := NewBlockChain(db, config, params.TestChainConfig, engine, vm.Config{}, lastAcceptedHash)
 	if err != nil {
 		t.Fatalf("Failed to recreate chain: %v", err)
 	}
@@ -632,7 +591,7 @@ func testRepairWithScheme(t *testing.T, tt *rewindTest, snapshots bool, scheme s
 	if head := newChain.CurrentHeader(); head.Number.Uint64() != tt.expHeadBlock {
 		t.Errorf("Head header mismatch: have %d, want %d", head.Number, tt.expHeadBlock)
 	}
-	if head := newChain.CurrentBlock(); head.Number.Uint64() != tt.expHeadBlock {
-		t.Errorf("Head block mismatch: have %d, want %d", head.Number, tt.expHeadBlock)
+	if head := newChain.CurrentBlock(); head.NumberU64() != tt.expHeadBlock {
+		t.Errorf("Head block mismatch: have %d, want %d", head.NumberU64(), tt.expHeadBlock)
 	}
 }

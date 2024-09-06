@@ -32,12 +32,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ava-labs/coreth/core/rawdb"
-	"github.com/ava-labs/coreth/trie"
+	"github.com/VictoriaMetrics/fastcache"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/tenderly/coreth/core/rawdb"
+	"github.com/tenderly/coreth/ethdb"
+	"github.com/tenderly/coreth/rlp"
+	"github.com/tenderly/coreth/trie"
 )
 
 // journalGenerator is a disk layer entry containing the generator progress marker.
@@ -56,12 +57,12 @@ type journalGenerator struct {
 // loadSnapshot loads a pre-existing state snapshot backed by a key-value
 // store. If loading the snapshot from disk is successful, this function also
 // returns a boolean indicating whether or not the snapshot is fully generated.
-func loadSnapshot(diskdb ethdb.KeyValueStore, triedb *trie.Database, cache int, blockHash, root common.Hash, noBuild bool) (snapshot, bool, error) {
+func loadSnapshot(diskdb ethdb.KeyValueStore, triedb *trie.Database, cache int, blockHash, root common.Hash) (snapshot, bool, error) {
 	// Retrieve the block number and hash of the snapshot, failing if no snapshot
 	// is present in the database (or crashed mid-update).
 	baseBlockHash := rawdb.ReadSnapshotBlockHash(diskdb)
 	if baseBlockHash == (common.Hash{}) {
-		return nil, false, errors.New("missing or corrupted snapshot, no snapshot block hash")
+		return nil, false, fmt.Errorf("missing or corrupted snapshot, no snapshot block hash")
 	}
 	if baseBlockHash != blockHash {
 		return nil, false, fmt.Errorf("block hash stored on disk (%#x) does not match last accepted (%#x)", baseBlockHash, blockHash)
@@ -90,18 +91,18 @@ func loadSnapshot(diskdb ethdb.KeyValueStore, triedb *trie.Database, cache int, 
 	snapshot := &diskLayer{
 		diskdb:    diskdb,
 		triedb:    triedb,
-		cache:     newMeteredSnapshotCache(cache * 1024 * 1024),
+		cache:     fastcache.New(cache * 1024 * 1024),
 		root:      baseRoot,
 		blockHash: baseBlockHash,
 		created:   time.Now(),
 	}
 
-	var wiper chan struct{}
-	// Load the disk layer status from the generator if it's not complete
+	// Everything loaded correctly, resume any suspended operations
 	if !generator.Done {
 		// If the generator was still wiping, restart one from scratch (fine for
 		// now as it's rare and the wiper deletes the stuff it touches anyway, so
 		// restarting won't incur a lot of extra database hops.
+		var wiper chan struct{}
 		if generator.Wiping {
 			log.Info("Resuming previous snapshot wipe")
 			wiper = WipeSnapshot(diskdb, false)
@@ -111,11 +112,6 @@ func loadSnapshot(diskdb ethdb.KeyValueStore, triedb *trie.Database, cache int, 
 		if snapshot.genMarker == nil {
 			snapshot.genMarker = []byte{}
 		}
-	}
-
-	// Everything loaded correctly, resume any suspended operations
-	// if the background generation is allowed
-	if !generator.Done && !noBuild {
 		snapshot.genPending = make(chan struct{})
 		snapshot.genAbort = make(chan chan struct{})
 

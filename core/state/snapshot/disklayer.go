@@ -31,20 +31,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ava-labs/coreth/core/rawdb"
-	"github.com/ava-labs/coreth/core/types"
-	"github.com/ava-labs/coreth/trie"
-	"github.com/ava-labs/coreth/utils"
+	"github.com/VictoriaMetrics/fastcache"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/tenderly/coreth/core/rawdb"
+	"github.com/tenderly/coreth/ethdb"
+	"github.com/tenderly/coreth/rlp"
+	"github.com/tenderly/coreth/trie"
 )
 
 // diskLayer is a low level persistent snapshot built on top of a key-value store.
 type diskLayer struct {
 	diskdb ethdb.KeyValueStore // Key-value store containing the base snapshot
 	triedb *trie.Database      // Trie node cache for reconstruction purposes
-	cache  *utils.MeteredCache // Cache to avoid hitting the disk for direct access
+	cache  *fastcache.Cache    // Cache to avoid hitting the disk for direct access
 
 	blockHash common.Hash // Block hash of the base snapshot
 	root      common.Hash // Root hash of the base snapshot
@@ -61,16 +60,6 @@ type diskLayer struct {
 	abortStarted time.Time // Time as which disk layer started to be aborted
 
 	lock sync.RWMutex
-}
-
-// Release releases underlying resources; specifically the fastcache requires
-// Reset() in order to not leak memory.
-// OBS: It does not invoke Close on the diskdb
-func (dl *diskLayer) Release() error {
-	if dl.cache != nil {
-		dl.cache.Reset()
-	}
-	return nil
 }
 
 // Root returns  root hash for which this snapshot was made.
@@ -99,7 +88,7 @@ func (dl *diskLayer) Stale() bool {
 
 // Account directly retrieves the account associated with a particular hash in
 // the snapshot slim data format.
-func (dl *diskLayer) Account(hash common.Hash) (*types.SlimAccount, error) {
+func (dl *diskLayer) Account(hash common.Hash) (*Account, error) {
 	data, err := dl.AccountRLP(hash)
 	if err != nil {
 		return nil, err
@@ -107,7 +96,7 @@ func (dl *diskLayer) Account(hash common.Hash) (*types.SlimAccount, error) {
 	if len(data) == 0 { // can be both nil and []byte{}
 		return nil, nil
 	}
-	account := new(types.SlimAccount)
+	account := new(Account)
 	if err := rlp.DecodeBytes(data, account); err != nil {
 		panic(err)
 	}

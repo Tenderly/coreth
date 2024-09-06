@@ -13,22 +13,22 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
-	"github.com/ava-labs/coreth/params"
-	"github.com/ava-labs/coreth/sync/client/stats"
+	"github.com/tenderly/coreth/ethdb/memorydb"
+	"github.com/tenderly/coreth/params"
+	"github.com/tenderly/coreth/sync/client/stats"
 
 	"github.com/ava-labs/avalanchego/codec"
+	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/ava-labs/avalanchego/version"
 
+	"github.com/tenderly/coreth/core/types"
+	"github.com/tenderly/coreth/ethdb"
+	"github.com/tenderly/coreth/peer"
+	"github.com/tenderly/coreth/plugin/evm/message"
+	"github.com/tenderly/coreth/trie"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-
-	"github.com/ava-labs/coreth/core/rawdb"
-	"github.com/ava-labs/coreth/core/types"
-	"github.com/ava-labs/coreth/peer"
-	"github.com/ava-labs/coreth/plugin/evm/message"
-	"github.com/ava-labs/coreth/trie"
-	"github.com/ethereum/go-ethereum/ethdb"
 )
 
 const (
@@ -38,11 +38,7 @@ const (
 )
 
 var (
-	StateSyncVersion = &version.Application{
-		Major: 1,
-		Minor: 7,
-		Patch: 13,
-	}
+	StateSyncVersion          = version.NewDefaultApplication(constants.PlatformName, 1, 7, 13)
 	errEmptyResponse          = errors.New("empty response")
 	errTooManyBlocks          = errors.New("response contains more blocks than requested")
 	errHashMismatch           = errors.New("hash does not match expected value")
@@ -57,7 +53,7 @@ var _ Client = &client{}
 // Client synchronously fetches data from the network to fulfill state sync requests.
 // Repeatedly requests failed requests until the context to the request is expired.
 type Client interface {
-	// GetLeafs synchronously sends the given request, returning a parsed LeafsResponse or error
+	// GetLeafs synchronously sends given request, returning parsed *LeafsResponse or error
 	// Note: this verifies the response including the range proofs.
 	GetLeafs(ctx context.Context, request message.LeafsRequest) (message.LeafsResponse, error)
 
@@ -151,7 +147,7 @@ func parseLeafsResponse(codec codec.Manager, reqIntf message.Request, data []byt
 	// Populate proof when ProofVals are present in the response. Its ok to pass it as nil to the trie.VerifyRangeProof
 	// function as it will assert that all the leaves belonging to the specified root are present.
 	if len(leafsResponse.ProofVals) > 0 {
-		proof = rawdb.NewMemoryDatabase()
+		proof = memorydb.New()
 		defer proof.Close()
 		for _, proofVal := range leafsResponse.ProofVals {
 			proofKey := crypto.Keccak256(proofVal)
@@ -161,9 +157,13 @@ func parseLeafsResponse(codec codec.Manager, reqIntf message.Request, data []byt
 		}
 	}
 
-	firstKey := leafsRequest.Start
+	var (
+		firstKey = leafsRequest.Start
+		lastKey  = leafsRequest.End
+	)
+	// Last key is the last returned key in response
 	if len(leafsResponse.Keys) > 0 {
-		lastKey := leafsResponse.Keys[len(leafsResponse.Keys)-1]
+		lastKey = leafsResponse.Keys[len(leafsResponse.Keys)-1]
 
 		if firstKey == nil {
 			firstKey = bytes.Repeat([]byte{0x00}, len(lastKey))
@@ -173,7 +173,7 @@ func parseLeafsResponse(codec codec.Manager, reqIntf message.Request, data []byt
 	// VerifyRangeProof verifies that the key-value pairs included in [leafResponse] are all of the keys within the range from start
 	// to the last key returned.
 	// Also ensures the keys are in monotonically increasing order
-	more, err := trie.VerifyRangeProof(leafsRequest.Root, firstKey, leafsResponse.Keys, leafsResponse.Vals, proof)
+	more, err := trie.VerifyRangeProof(leafsRequest.Root, firstKey, lastKey, leafsResponse.Keys, leafsResponse.Vals, proof)
 	if err != nil {
 		return nil, 0, fmt.Errorf("%s due to %w", errInvalidRangeProof, err)
 	}
@@ -321,14 +321,14 @@ func (c *client) get(ctx context.Context, request message.Request, parseFn parse
 			start    time.Time = time.Now()
 		)
 		if len(c.stateSyncNodes) == 0 {
-			response, nodeID, err = c.networkClient.SendAppRequestAny(ctx, StateSyncVersion, requestBytes)
+			response, nodeID, err = c.networkClient.RequestAny(StateSyncVersion, requestBytes)
 		} else {
 			// get the next nodeID using the nodeIdx offset. If we're out of nodes, loop back to 0
 			// we do this every attempt to ensure we get a different node each time if possible.
 			nodeIdx := atomic.AddUint32(&c.stateSyncNodeIdx, 1)
 			nodeID = c.stateSyncNodes[nodeIdx%uint32(len(c.stateSyncNodes))]
 
-			response, err = c.networkClient.SendAppRequest(ctx, nodeID, requestBytes)
+			response, err = c.networkClient.Request(nodeID, requestBytes)
 		}
 		metric.UpdateRequestLatency(time.Since(start))
 
@@ -347,7 +347,7 @@ func (c *client) get(ctx context.Context, request message.Request, parseFn parse
 			responseIntf, numElements, err = parseFn(c.codec, request, response)
 			if err != nil {
 				lastErr = err
-				log.Debug("could not validate response, retrying", "nodeID", nodeID, "attempt", attempt, "request", request, "err", err)
+				log.Info("could not validate response, retrying", "nodeID", nodeID, "attempt", attempt, "request", request, "err", err)
 				c.networkClient.TrackBandwidth(nodeID, 0)
 				metric.IncFailed()
 				metric.IncInvalidResponse()
@@ -357,7 +357,7 @@ func (c *client) get(ctx context.Context, request message.Request, parseFn parse
 			bandwidth := float64(len(response)) / (time.Since(start).Seconds() + epsilon)
 			c.networkClient.TrackBandwidth(nodeID, bandwidth)
 			metric.IncSucceeded()
-			metric.IncReceived(int64(numElements))
+			metric.UpdateReceived(int64(numElements))
 			return responseIntf, nil
 		}
 	}

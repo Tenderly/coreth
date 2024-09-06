@@ -7,22 +7,21 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/coreth/core/vm"
 	"math/big"
 	"sort"
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ava-labs/coreth/params"
+	"github.com/tenderly/coreth/core/state"
+	"github.com/tenderly/coreth/params"
 
 	"github.com/ava-labs/avalanchego/chains/atomic"
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/utils"
-	"github.com/ava-labs/avalanchego/utils/crypto/secp256k1"
+	"github.com/ava-labs/avalanchego/utils/crypto"
 	"github.com/ava-labs/avalanchego/utils/hashing"
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
@@ -55,28 +54,12 @@ type EVMOutput struct {
 	AssetID ids.ID         `serialize:"true" json:"assetID"`
 }
 
-func (o EVMOutput) Compare(other EVMOutput) int {
-	addrComp := bytes.Compare(o.Address.Bytes(), other.Address.Bytes())
-	if addrComp != 0 {
-		return addrComp
-	}
-	return bytes.Compare(o.AssetID[:], other.AssetID[:])
-}
-
 // EVMInput defines an input created from the EVM state to fund export transactions
 type EVMInput struct {
 	Address common.Address `serialize:"true" json:"address"`
 	Amount  uint64         `serialize:"true" json:"amount"`
 	AssetID ids.ID         `serialize:"true" json:"assetID"`
 	Nonce   uint64         `serialize:"true" json:"nonce"`
-}
-
-func (i EVMInput) Compare(other EVMInput) int {
-	addrComp := bytes.Compare(i.Address.Bytes(), other.Address.Bytes())
-	if addrComp != 0 {
-		return addrComp
-	}
-	return bytes.Compare(i.AssetID[:], other.AssetID[:])
 }
 
 // Verify ...
@@ -111,8 +94,8 @@ type UnsignedTx interface {
 	ID() ids.ID
 	GasUsed(fixedFee bool) (uint64, error)
 	Burned(assetID ids.ID) (uint64, error)
+	UnsignedBytes() []byte
 	Bytes() []byte
-	SignedBytes() []byte
 }
 
 // UnsignedAtomicTx is an unsigned operation that can be atomically accepted
@@ -120,7 +103,7 @@ type UnsignedAtomicTx interface {
 	UnsignedTx
 
 	// InputUTXOs returns the UTXOs this tx consumes
-	InputUTXOs() set.Set[ids.ID]
+	InputUTXOs() ids.Set
 	// Verify attempts to verify that the transaction is well formed
 	Verify(ctx *snow.Context, rules params.Rules) error
 	// Attempts to verify this transaction with the provided state.
@@ -130,7 +113,7 @@ type UnsignedAtomicTx interface {
 	// The set of atomic requests must be returned in a consistent order.
 	AtomicOps() (ids.ID, *atomic.Requests, error)
 
-	EVMStateTransfer(ctx *snow.Context, state vm.StateDB) error
+	EVMStateTransfer(ctx *snow.Context, state *state.StateDB) error
 }
 
 // Tx is a signed transaction
@@ -142,21 +125,8 @@ type Tx struct {
 	Creds []verify.Verifiable `serialize:"true" json:"credentials"`
 }
 
-func (tx *Tx) Compare(other *Tx) int {
-	txHex := tx.ID().Hex()
-	otherHex := other.ID().Hex()
-	switch {
-	case txHex < otherHex:
-		return -1
-	case txHex > otherHex:
-		return 1
-	default:
-		return 0
-	}
-}
-
 // Sign this transaction with the provided signers
-func (tx *Tx) Sign(c codec.Manager, signers [][]*secp256k1.PrivateKey) error {
+func (tx *Tx) Sign(c codec.Manager, signers [][]*crypto.PrivateKeySECP256K1R) error {
 	unsignedBytes, err := c.Marshal(codecVersion, &tx.UnsignedAtomicTx)
 	if err != nil {
 		return fmt.Errorf("couldn't marshal UnsignedAtomicTx: %w", err)
@@ -166,7 +136,7 @@ func (tx *Tx) Sign(c codec.Manager, signers [][]*secp256k1.PrivateKey) error {
 	hash := hashing.ComputeHash256(unsignedBytes)
 	for _, keys := range signers {
 		cred := &secp256k1fx.Credential{
-			Sigs: make([][secp256k1.SignatureLen]byte, len(keys)),
+			Sigs: make([][crypto.SECP256K1RSigLen]byte, len(keys)),
 		}
 		for i, key := range keys {
 			sig, err := key.SignHash(hash) // Sign hash
@@ -201,7 +171,7 @@ func (tx *Tx) BlockFeeContribution(fixedFee bool, avaxAssetID ids.ID, baseFee *b
 	if err != nil {
 		return nil, nil, err
 	}
-	txFee, err := CalculateDynamicFee(gasUsed, baseFee)
+	txFee, err := calculateDynamicFee(gasUsed, baseFee)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -223,7 +193,7 @@ func (tx *Tx) BlockFeeContribution(fixedFee bool, avaxAssetID ids.ID, baseFee *b
 // innerSortInputsAndSigners implements sort.Interface for EVMInput
 type innerSortInputsAndSigners struct {
 	inputs  []EVMInput
-	signers [][]*secp256k1.PrivateKey
+	signers [][]*crypto.PrivateKeySECP256K1R
 }
 
 func (ins *innerSortInputsAndSigners) Less(i, j int) bool {
@@ -242,13 +212,56 @@ func (ins *innerSortInputsAndSigners) Swap(i, j int) {
 }
 
 // SortEVMInputsAndSigners sorts the list of EVMInputs based on the addresses and assetIDs
-func SortEVMInputsAndSigners(inputs []EVMInput, signers [][]*secp256k1.PrivateKey) {
+func SortEVMInputsAndSigners(inputs []EVMInput, signers [][]*crypto.PrivateKeySECP256K1R) {
 	sort.Sort(&innerSortInputsAndSigners{inputs: inputs, signers: signers})
+}
+
+// IsSortedAndUniqueEVMInputs returns true if the EVM Inputs are sorted and unique
+// based on the account addresses
+func IsSortedAndUniqueEVMInputs(inputs []EVMInput) bool {
+	return utils.IsSortedAndUnique(&innerSortInputsAndSigners{inputs: inputs})
+}
+
+// innerSortEVMOutputs implements sort.Interface for EVMOutput
+type innerSortEVMOutputs struct {
+	outputs []EVMOutput
+}
+
+func (outs *innerSortEVMOutputs) Less(i, j int) bool {
+	addrComp := bytes.Compare(outs.outputs[i].Address.Bytes(), outs.outputs[j].Address.Bytes())
+	if addrComp != 0 {
+		return addrComp < 0
+	}
+	return bytes.Compare(outs.outputs[i].AssetID[:], outs.outputs[j].AssetID[:]) < 0
+}
+
+func (outs *innerSortEVMOutputs) Len() int { return len(outs.outputs) }
+
+func (outs *innerSortEVMOutputs) Swap(i, j int) {
+	outs.outputs[j], outs.outputs[i] = outs.outputs[i], outs.outputs[j]
+}
+
+// SortEVMOutputs sorts the list of EVMOutputs based on the addresses and assetIDs
+// of the outputs
+func SortEVMOutputs(outputs []EVMOutput) {
+	sort.Sort(&innerSortEVMOutputs{outputs: outputs})
+}
+
+// IsSortedEVMOutputs returns true if the EVMOutputs are sorted
+// based on the account addresses and assetIDs
+func IsSortedEVMOutputs(outputs []EVMOutput) bool {
+	return sort.IsSorted(&innerSortEVMOutputs{outputs: outputs})
+}
+
+// IsSortedAndUniqueEVMOutputs returns true if the EVMOutputs are sorted
+// and unique based on the account addresses and assetIDs
+func IsSortedAndUniqueEVMOutputs(outputs []EVMOutput) bool {
+	return utils.IsSortedAndUnique(&innerSortEVMOutputs{outputs: outputs})
 }
 
 // calculates the amount of AVAX that must be burned by an atomic transaction
 // that consumes [cost] at [baseFee].
-func CalculateDynamicFee(cost uint64, baseFee *big.Int) (uint64, error) {
+func calculateDynamicFee(cost uint64, baseFee *big.Int) (uint64, error) {
 	if baseFee == nil {
 		return 0, errNilBaseFee
 	}
@@ -275,7 +288,7 @@ func mergeAtomicOps(txs []*Tx) (map[ids.ID]*atomic.Requests, error) {
 		// with txs initialized from the txID index.
 		copyTxs := make([]*Tx, len(txs))
 		copy(copyTxs, txs)
-		utils.Sort(copyTxs)
+		sort.Slice(copyTxs, func(i, j int) bool { return copyTxs[i].ID().Hex() < copyTxs[j].ID().Hex() })
 		txs = copyTxs
 	}
 	output := make(map[ids.ID]*atomic.Requests)
@@ -287,4 +300,15 @@ func mergeAtomicOps(txs []*Tx) (map[ids.ID]*atomic.Requests, error) {
 		mergeAtomicOpsToMap(output, chainID, txRequests)
 	}
 	return output, nil
+}
+
+// mergeAtomicOps merges atomic ops for [chainID] represented by [requests]
+// to the [output] map provided.
+func mergeAtomicOpsToMap(output map[ids.ID]*atomic.Requests, chainID ids.ID, requests *atomic.Requests) {
+	if request, exists := output[chainID]; exists {
+		request.PutRequests = append(request.PutRequests, requests.PutRequests...)
+		request.RemoveRequests = append(request.RemoveRequests, requests.RemoveRequests...)
+	} else {
+		output[chainID] = requests
+	}
 }

@@ -7,13 +7,13 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ava-labs/coreth/core/rawdb"
-	"github.com/ava-labs/coreth/core/state"
-	"github.com/ava-labs/coreth/params"
-	"github.com/ava-labs/coreth/vmerrs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/assert"
+	"github.com/tenderly/coreth/core/rawdb"
+	"github.com/tenderly/coreth/core/state"
+	"github.com/tenderly/coreth/params"
+	"github.com/tenderly/coreth/vmerrs"
 )
 
 func TestPrecompiledContractSpendsGas(t *testing.T) {
@@ -73,7 +73,7 @@ func TestPackNativeAssetCallInput(t *testing.T) {
 func TestStatefulPrecompile(t *testing.T) {
 	vmCtx := BlockContext{
 		BlockNumber:       big.NewInt(0),
-		Time:              0,
+		Time:              big.NewInt(0),
 		CanTransfer:       CanTransfer,
 		CanTransferMC:     CanTransferMC,
 		Transfer:          Transfer,
