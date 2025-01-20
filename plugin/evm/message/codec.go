@@ -15,21 +15,16 @@ const (
 	maxMessageSize = 2*units.MiB - 64*units.KiB // Subtract 64 KiB from p2p network cap to leave room for encoding overhead from AvalancheGo
 )
 
-var (
-	Codec           codec.Manager
-	CrossChainCodec codec.Manager
-)
+var Codec codec.Manager
 
 func init() {
 	Codec = codec.NewManager(maxMessageSize)
 	c := linearcodec.NewDefault()
 
 	errs := wrappers.Errs{}
+	// Gossip types removed from codec
+	c.SkipRegistrations(2)
 	errs.Add(
-		// Gossip types
-		c.RegisterType(AtomicTxGossip{}),
-		c.RegisterType(EthTxsGossip{}),
-
 		// Types for state sync frontier consensus
 		c.RegisterType(SyncSummary{}),
 
@@ -47,22 +42,6 @@ func init() {
 		c.RegisterType(SignatureResponse{}),
 
 		Codec.RegisterCodec(Version, c),
-	)
-
-	if errs.Errored() {
-		panic(errs.Err)
-	}
-
-	CrossChainCodec = codec.NewManager(maxMessageSize)
-	ccc := linearcodec.NewDefault()
-
-	errs = wrappers.Errs{}
-	errs.Add(
-		// CrossChainRequest Types
-		ccc.RegisterType(EthCallRequest{}),
-		ccc.RegisterType(EthCallResponse{}),
-
-		CrossChainCodec.RegisterCodec(Version, ccc),
 	)
 
 	if errs.Errored() {

@@ -38,15 +38,12 @@ import (
 
 	"github.com/ava-labs/coreth/internal/flags"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/fjl/memsize/memsizeui"
 	"github.com/mattn/go-colorable"
 	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/exp/slog"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
-
-var Memsize memsizeui.Handler
 
 var (
 	verbosityFlag = &cli.IntFlag{
@@ -176,22 +173,12 @@ var Flags = []cli.Flag{
 }
 
 var (
-	glogger                *log.GlogHandler
-	logOutputFile          io.WriteCloser
-	defaultTerminalHandler *log.TerminalHandler
+	glogger       *log.GlogHandler
+	logOutputFile io.WriteCloser
 )
 
 func init() {
-	defaultTerminalHandler = log.NewTerminalHandler(os.Stderr, false)
-	glogger = log.NewGlogHandler(defaultTerminalHandler)
-	glogger.Verbosity(log.LvlInfo)
-	log.SetDefault(log.NewLogger(glogger))
-}
-
-func ResetLogging() {
-	if defaultTerminalHandler != nil {
-		defaultTerminalHandler.ResetFieldPadding()
-	}
+	glogger = log.NewGlogHandler(log.NewTerminalHandler(os.Stderr, false))
 }
 
 // Setup initializes profiling and logging based on the CLI flags.
@@ -324,7 +311,6 @@ func Setup(ctx *cli.Context) error {
 }
 
 func StartPProf(address string) {
-	http.Handle("/memsize/", http.StripPrefix("/memsize", &Memsize))
 	log.Info("Starting pprof server", "addr", fmt.Sprintf("http://%s/debug/pprof", address))
 	go func() {
 		if err := http.ListenAndServe(address, nil); err != nil {

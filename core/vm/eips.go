@@ -95,7 +95,7 @@ func enable1884(jt *JumpTable) {
 }
 
 func opSelfBalance(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	balance, _ := uint256.FromBig(interpreter.evm.StateDB.GetBalance(scope.Contract.Address()))
+	balance := interpreter.evm.StateDB.GetBalance(scope.Contract.Address())
 	scope.Stack.push(balance)
 	return nil, nil
 }
@@ -169,12 +169,6 @@ func enable2929(jt *JumpTable) {
 func enableAP1(jt *JumpTable) {
 	jt[SSTORE].dynamicGas = gasSStoreAP1
 	jt[SELFDESTRUCT].dynamicGas = gasSelfdestructAP1
-	jt[CALLEX].dynamicGas = gasCallExpertAP1
-}
-
-func enableAP2(jt *JumpTable) {
-	jt[BALANCEMC] = &operation{execute: opUndefined, maxStack: maxStack(0, 0)}
-	jt[CALLEX] = &operation{execute: opUndefined, maxStack: maxStack(0, 0)}
 }
 
 // enable3198 applies EIP-3198 (BASEFEE Opcode)

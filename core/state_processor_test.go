@@ -31,6 +31,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ava-labs/avalanchego/upgrade"
 	"github.com/ava-labs/coreth/consensus"
 	"github.com/ava-labs/coreth/consensus/dummy"
 	"github.com/ava-labs/coreth/consensus/misc/eip4844"
@@ -55,6 +56,7 @@ func u64(val uint64) *uint64 { return &val }
 func TestStateProcessorErrors(t *testing.T) {
 	cpcfg := *params.TestChainConfig
 	config := &cpcfg
+	config.ShanghaiTime = u64(0)
 	config.CancunTime = u64(0)
 
 	var (
@@ -108,16 +110,18 @@ func TestStateProcessorErrors(t *testing.T) {
 		var (
 			db    = rawdb.NewMemoryDatabase()
 			gspec = &Genesis{
-				Config: config,
-				Alloc: GenesisAlloc{
-					common.HexToAddress("0x71562b71999873DB5b286dF957af199Ec94617F7"): GenesisAccount{
+				Config:    config,
+				Timestamp: uint64(upgrade.InitiallyActiveTime.Unix()),
+				Alloc: types.GenesisAlloc{
+					common.HexToAddress("0x71562b71999873DB5b286dF957af199Ec94617F7"): types.GenesisAccount{
 						Balance: big.NewInt(4000000000000000000), // 4 ether
 						Nonce:   0,
 					},
 				},
 				GasLimit: params.CortinaGasLimit,
 			}
-			blockchain, _  = NewBlockChain(db, DefaultCacheConfig, gspec, dummy.NewCoinbaseFaker(), vm.Config{}, common.Hash{}, false)
+			// FullFaker used to skip header verification that enforces no blobs.
+			blockchain, _  = NewBlockChain(db, DefaultCacheConfig, gspec, dummy.NewFullFaker(), vm.Config{}, common.Hash{}, false)
 			tooBigInitCode = [params.MaxInitCodeSize + 1]byte{}
 		)
 
@@ -215,7 +219,7 @@ func TestStateProcessorErrors(t *testing.T) {
 				txs: []*types.Transaction{
 					mkDynamicTx(0, common.Address{}, params.TxGas, bigNumber, bigNumber),
 				},
-				want: "could not apply tx 0 [0xd82a0c2519acfeac9a948258c47e784acd20651d9d80f9a1c67b4137651c3a24]: insufficient funds for gas * price + value: address 0x71562b71999873DB5b286dF957af199Ec94617F7 have 4000000000000000000 want 2431633873983640103894990685182446064918669677978451844828609264166175722438635000",
+				want: "could not apply tx 0 [0xd82a0c2519acfeac9a948258c47e784acd20651d9d80f9a1c67b4137651c3a24]: insufficient funds for gas * price + value: address 0x71562b71999873DB5b286dF957af199Ec94617F7 required balance exceeds 256 bits",
 			},
 			{ // ErrMaxInitCodeSizeExceeded
 				txs: []*types.Transaction{
@@ -236,7 +240,8 @@ func TestStateProcessorErrors(t *testing.T) {
 				want: "could not apply tx 0 [0x6c11015985ce82db691d7b2d017acda296db88b811c3c60dc71449c76256c716]: max fee per gas less than block base fee: address 0x71562b71999873DB5b286dF957af199Ec94617F7, maxFeePerGas: 1, baseFee: 225000000000",
 			},
 		} {
-			block := GenerateBadBlock(gspec.ToBlock(), dummy.NewCoinbaseFaker(), tt.txs, gspec.Config)
+			// FullFaker used to skip header verification that enforces no blobs.
+			block := GenerateBadBlock(gspec.ToBlock(), dummy.NewFullFaker(), tt.txs, gspec.Config)
 			_, err := blockchain.InsertChain(types.Blocks{block})
 			if err == nil {
 				t.Fatal("block imported without errors")
@@ -253,21 +258,23 @@ func TestStateProcessorErrors(t *testing.T) {
 			db    = rawdb.NewMemoryDatabase()
 			gspec = &Genesis{
 				Config: &params.ChainConfig{
-					ChainID:                     big.NewInt(1),
-					HomesteadBlock:              big.NewInt(0),
-					EIP150Block:                 big.NewInt(0),
-					EIP155Block:                 big.NewInt(0),
-					EIP158Block:                 big.NewInt(0),
-					ByzantiumBlock:              big.NewInt(0),
-					ConstantinopleBlock:         big.NewInt(0),
-					PetersburgBlock:             big.NewInt(0),
-					IstanbulBlock:               big.NewInt(0),
-					MuirGlacierBlock:            big.NewInt(0),
-					ApricotPhase1BlockTimestamp: utils.NewUint64(0),
-					ApricotPhase2BlockTimestamp: utils.NewUint64(0),
+					ChainID:             big.NewInt(1),
+					HomesteadBlock:      big.NewInt(0),
+					EIP150Block:         big.NewInt(0),
+					EIP155Block:         big.NewInt(0),
+					EIP158Block:         big.NewInt(0),
+					ByzantiumBlock:      big.NewInt(0),
+					ConstantinopleBlock: big.NewInt(0),
+					PetersburgBlock:     big.NewInt(0),
+					IstanbulBlock:       big.NewInt(0),
+					MuirGlacierBlock:    big.NewInt(0),
+					NetworkUpgrades: params.NetworkUpgrades{
+						ApricotPhase1BlockTimestamp: utils.NewUint64(0),
+						ApricotPhase2BlockTimestamp: utils.NewUint64(0),
+					},
 				},
-				Alloc: GenesisAlloc{
-					common.HexToAddress("0x71562b71999873DB5b286dF957af199Ec94617F7"): GenesisAccount{
+				Alloc: types.GenesisAlloc{
+					common.HexToAddress("0x71562b71999873DB5b286dF957af199Ec94617F7"): types.GenesisAccount{
 						Balance: big.NewInt(1000000000000000000), // 1 ether
 						Nonce:   0,
 					},
@@ -305,8 +312,8 @@ func TestStateProcessorErrors(t *testing.T) {
 			db    = rawdb.NewMemoryDatabase()
 			gspec = &Genesis{
 				Config: config,
-				Alloc: GenesisAlloc{
-					common.HexToAddress("0x71562b71999873DB5b286dF957af199Ec94617F7"): GenesisAccount{
+				Alloc: types.GenesisAlloc{
+					common.HexToAddress("0x71562b71999873DB5b286dF957af199Ec94617F7"): types.GenesisAccount{
 						Balance: big.NewInt(1000000000000000000), // 1 ether
 						Nonce:   0,
 						Code:    common.FromHex("0xB0B0FACE"),

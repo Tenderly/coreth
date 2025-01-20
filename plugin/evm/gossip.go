@@ -1,6 +1,8 @@
 // Copyright (C) 2019-2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
+// TODO: move to network
+
 package evm
 
 import (
@@ -10,19 +12,21 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ethereum/go-ethereum/common"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
 	"github.com/ava-labs/avalanchego/network/p2p/gossip"
+	"github.com/ava-labs/avalanchego/snow/engine/common"
+	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/coreth/core"
 	"github.com/ava-labs/coreth/core/txpool"
 	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/coreth/eth"
+	"github.com/ava-labs/coreth/plugin/evm/config"
 )
 
 const pendingTxsBuffer = 10
@@ -30,11 +34,9 @@ const pendingTxsBuffer = 10
 var (
 	_ p2p.Handler = (*txGossipHandler)(nil)
 
-	_ gossip.Gossipable                  = (*GossipEthTx)(nil)
-	_ gossip.Gossipable                  = (*GossipAtomicTx)(nil)
-	_ gossip.Marshaller[*GossipAtomicTx] = (*GossipAtomicTxMarshaller)(nil)
-	_ gossip.Marshaller[*GossipEthTx]    = (*GossipEthTxMarshaller)(nil)
-	_ gossip.Set[*GossipEthTx]           = (*GossipEthTxPool)(nil)
+	_ gossip.Gossipable               = (*GossipEthTx)(nil)
+	_ gossip.Marshaller[*GossipEthTx] = (*GossipEthTxMarshaller)(nil)
+	_ gossip.Set[*GossipEthTx]        = (*GossipEthTxPool)(nil)
 
 	_ eth.PushGossiper = (*EthPushGossiper)(nil)
 )
@@ -85,37 +87,18 @@ func (t txGossipHandler) AppGossip(ctx context.Context, nodeID ids.NodeID, gossi
 	t.appGossipHandler.AppGossip(ctx, nodeID, gossipBytes)
 }
 
-func (t txGossipHandler) AppRequest(ctx context.Context, nodeID ids.NodeID, deadline time.Time, requestBytes []byte) ([]byte, error) {
+func (t txGossipHandler) AppRequest(ctx context.Context, nodeID ids.NodeID, deadline time.Time, requestBytes []byte) ([]byte, *common.AppError) {
 	return t.appRequestHandler.AppRequest(ctx, nodeID, deadline, requestBytes)
 }
 
-func (t txGossipHandler) CrossChainAppRequest(context.Context, ids.ID, time.Time, []byte) ([]byte, error) {
-	return nil, nil
-}
-
-type GossipAtomicTxMarshaller struct{}
-
-func (g GossipAtomicTxMarshaller) MarshalGossip(tx *GossipAtomicTx) ([]byte, error) {
-	return tx.Tx.SignedBytes(), nil
-}
-
-func (g GossipAtomicTxMarshaller) UnmarshalGossip(bytes []byte) (*GossipAtomicTx, error) {
-	tx, err := ExtractAtomicTx(bytes, Codec)
-	return &GossipAtomicTx{
-		Tx: tx,
-	}, err
-}
-
-type GossipAtomicTx struct {
-	Tx *Tx
-}
-
-func (tx *GossipAtomicTx) GossipID() ids.ID {
-	return tx.Tx.ID()
-}
-
 func NewGossipEthTxPool(mempool *txpool.TxPool, registerer prometheus.Registerer) (*GossipEthTxPool, error) {
-	bloom, err := gossip.NewBloomFilter(registerer, "eth_tx_bloom_filter", txGossipBloomMinTargetElements, txGossipBloomTargetFalsePositiveRate, txGossipBloomResetFalsePositiveRate)
+	bloom, err := gossip.NewBloomFilter(
+		registerer,
+		"eth_tx_bloom_filter",
+		config.TxGossipBloomMinTargetElements,
+		config.TxGossipBloomTargetFalsePositiveRate,
+		config.TxGossipBloomResetFalsePositiveRate,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize bloom filter: %w", err)
 	}
@@ -163,7 +146,7 @@ func (g *GossipEthTxPool) Subscribe(ctx context.Context) {
 			return
 		case pendingTxs := <-g.pendingTxs:
 			g.lock.Lock()
-			optimalElements := (g.mempool.PendingSize(false) + len(pendingTxs.Txs)) * txGossipBloomChurnMultiplier
+			optimalElements := (g.mempool.PendingSize(txpool.PendingFilter{}) + len(pendingTxs.Txs)) * config.TxGossipBloomChurnMultiplier
 			for _, pendingTx := range pendingTxs.Txs {
 				tx := &GossipEthTx{Tx: pendingTx}
 				g.bloom.Add(tx)
@@ -196,7 +179,7 @@ func (g *GossipEthTxPool) Add(tx *GossipEthTx) error {
 // Has should just return whether or not the [txID] is still in the mempool,
 // not whether it is in the mempool AND pending.
 func (g *GossipEthTxPool) Has(txID ids.ID) bool {
-	return g.mempool.Has(common.Hash(txID))
+	return g.mempool.Has(ethcommon.Hash(txID))
 }
 
 func (g *GossipEthTxPool) Iterate(f func(tx *GossipEthTx) bool) {

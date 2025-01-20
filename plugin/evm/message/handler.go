@@ -6,34 +6,10 @@ package message
 import (
 	"context"
 
-	"github.com/ethereum/go-ethereum/log"
-
 	"github.com/ava-labs/avalanchego/ids"
 )
 
-var (
-	_ GossipHandler            = NoopMempoolGossipHandler{}
-	_ RequestHandler           = NoopRequestHandler{}
-	_ CrossChainRequestHandler = NoopCrossChainRequestHandler{}
-)
-
-// GossipHandler handles incoming gossip messages
-type GossipHandler interface {
-	HandleAtomicTx(nodeID ids.NodeID, msg AtomicTxGossip) error
-	HandleEthTxs(nodeID ids.NodeID, msg EthTxsGossip) error
-}
-
-type NoopMempoolGossipHandler struct{}
-
-func (NoopMempoolGossipHandler) HandleAtomicTx(nodeID ids.NodeID, msg AtomicTxGossip) error {
-	log.Debug("dropping unexpected AtomicTxGossip message", "peerID", nodeID)
-	return nil
-}
-
-func (NoopMempoolGossipHandler) HandleEthTxs(nodeID ids.NodeID, msg EthTxsGossip) error {
-	log.Debug("dropping unexpected EthTxsGossip message", "peerID", nodeID)
-	return nil
-}
+var _ RequestHandler = NoopRequestHandler{}
 
 // RequestHandler interface handles incoming requests from peers
 // Must have methods in format of handleType(context.Context, ids.NodeID, uint32, request Type) error
@@ -81,16 +57,5 @@ func (NoopRequestHandler) HandleMessageSignatureRequest(ctx context.Context, nod
 }
 
 func (NoopRequestHandler) HandleBlockSignatureRequest(ctx context.Context, nodeID ids.NodeID, requestID uint32, signatureRequest BlockSignatureRequest) ([]byte, error) {
-	return nil, nil
-}
-
-// CrossChainRequestHandler interface handles incoming requests from another chain
-type CrossChainRequestHandler interface {
-	HandleEthCallRequest(ctx context.Context, requestingchainID ids.ID, requestID uint32, ethCallRequest EthCallRequest) ([]byte, error)
-}
-
-type NoopCrossChainRequestHandler struct{}
-
-func (NoopCrossChainRequestHandler) HandleEthCallRequest(ctx context.Context, requestingchainID ids.ID, requestID uint32, ethCallRequest EthCallRequest) ([]byte, error) {
 	return nil, nil
 }

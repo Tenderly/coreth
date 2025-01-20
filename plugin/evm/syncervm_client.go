@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database/versiondb"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/choices"
 	commonEng "github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/vms/components/chain"
@@ -277,7 +276,14 @@ func (client *stateSyncerClient) syncBlocks(ctx context.Context, fromHash common
 
 func (client *stateSyncerClient) syncAtomicTrie(ctx context.Context) error {
 	log.Info("atomic tx: sync starting", "root", client.syncSummary.AtomicRoot)
-	atomicSyncer, err := client.atomicBackend.Syncer(client.client, client.syncSummary.AtomicRoot, client.syncSummary.BlockNumber, client.stateSyncRequestSize)
+	atomicSyncer, err := newAtomicSyncer(
+		client.client,
+		client.db,
+		client.atomicBackend.AtomicTrie(),
+		client.syncSummary.AtomicRoot,
+		client.syncSummary.BlockNumber,
+		client.stateSyncRequestSize,
+	)
 	if err != nil {
 		return err
 	}
@@ -336,7 +342,6 @@ func (client *stateSyncerClient) finishSync() error {
 		return fmt.Errorf("could not convert block(%T) to evm.Block", stateBlock)
 	}
 
-	evmBlock.SetStatus(choices.Accepted)
 	block := evmBlock.ethBlock
 
 	if block.Hash() != client.syncSummary.BlockHash {

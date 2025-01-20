@@ -5,18 +5,21 @@ package evm
 
 import (
 	"context"
-	"os"
+	"encoding/binary"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/network/p2p"
+	"github.com/ava-labs/avalanchego/proto/pb/sdk"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/proto"
 
 	commonEng "github.com/ava-labs/avalanchego/snow/engine/common"
 
-	"github.com/ava-labs/coreth/plugin/evm/message"
+	"github.com/ava-labs/coreth/plugin/evm/atomic"
 )
 
 // show that a txID discovered from gossip is requested to the same node only if
@@ -54,13 +57,16 @@ func TestMempoolAtmTxsAppGossipHandling(t *testing.T) {
 	tx, conflictingTx := importTxs[0], importTxs[1]
 
 	// gossip tx and check it is accepted and gossiped
-	msg := message.AtomicTxGossip{
-		Tx: tx.SignedBytes(),
+	msg := atomic.GossipAtomicTx{
+		Tx: tx,
 	}
-	msgBytes, err := message.BuildGossipMessage(vm.networkCodec, msg)
+	marshaller := atomic.GossipAtomicTxMarshaller{}
+	txBytes, err := marshaller.MarshalGossip(&msg)
 	assert.NoError(err)
-
 	vm.ctx.Lock.Unlock()
+
+	msgBytes, err := buildAtomicPushGossip(txBytes)
+	assert.NoError(err)
 
 	// show that no txID is requested
 	assert.NoError(vm.AppGossip(context.Background(), nodeID, msgBytes))
@@ -72,7 +78,7 @@ func TestMempoolAtmTxsAppGossipHandling(t *testing.T) {
 	txGossipedLock.Lock()
 	assert.Equal(0, txGossiped, "tx should not have been gossiped")
 	txGossipedLock.Unlock()
-	assert.True(vm.mempool.has(tx.ID()))
+	assert.True(vm.mempool.Has(tx.ID()))
 
 	vm.ctx.Lock.Unlock()
 
@@ -86,14 +92,17 @@ func TestMempoolAtmTxsAppGossipHandling(t *testing.T) {
 	txGossipedLock.Unlock()
 
 	// show that conflicting tx is not added to mempool
-	msg = message.AtomicTxGossip{
-		Tx: conflictingTx.SignedBytes(),
+	msg = atomic.GossipAtomicTx{
+		Tx: conflictingTx,
 	}
-	msgBytes, err = message.BuildGossipMessage(vm.networkCodec, msg)
+	marshaller = atomic.GossipAtomicTxMarshaller{}
+	txBytes, err = marshaller.MarshalGossip(&msg)
 	assert.NoError(err)
 
 	vm.ctx.Lock.Unlock()
 
+	msgBytes, err = buildAtomicPushGossip(txBytes)
+	assert.NoError(err)
 	assert.NoError(vm.AppGossip(context.Background(), nodeID, msgBytes))
 
 	vm.ctx.Lock.Lock()
@@ -102,14 +111,11 @@ func TestMempoolAtmTxsAppGossipHandling(t *testing.T) {
 	txGossipedLock.Lock()
 	assert.Equal(0, txGossiped, "tx should not have been gossiped")
 	txGossipedLock.Unlock()
-	assert.False(vm.mempool.has(conflictingTx.ID()), "conflicting tx should not be in the atomic mempool")
+	assert.False(vm.mempool.Has(conflictingTx.ID()), "conflicting tx should not be in the atomic mempool")
 }
 
 // show that txs already marked as invalid are not re-requested on gossiping
 func TestMempoolAtmTxsAppGossipHandlingDiscardedTx(t *testing.T) {
-	if os.Getenv("RUN_FLAKY_TESTS") != "true" {
-		t.Skip("FLAKY")
-	}
 	assert := assert.New(t)
 
 	_, vm, _, sharedMemory, sender := GenesisVM(t, true, "", "", "")
@@ -141,24 +147,27 @@ func TestMempoolAtmTxsAppGossipHandlingDiscardedTx(t *testing.T) {
 	tx, conflictingTx := importTxs[0], importTxs[1]
 	txID := tx.ID()
 
-	mempool.AddTx(tx)
+	mempool.AddRemoteTx(tx)
 	mempool.NextTx()
 	mempool.DiscardCurrentTx(txID)
 
 	// Check the mempool does not contain the discarded transaction
-	assert.False(mempool.has(txID))
+	assert.False(mempool.Has(txID))
 
 	// Gossip the transaction to the VM and ensure that it is not added to the mempool
 	// and is not re-gossipped.
 	nodeID := ids.GenerateTestNodeID()
-	msg := message.AtomicTxGossip{
-		Tx: tx.SignedBytes(),
+	msg := atomic.GossipAtomicTx{
+		Tx: tx,
 	}
-	msgBytes, err := message.BuildGossipMessage(vm.networkCodec, msg)
+	marshaller := atomic.GossipAtomicTxMarshaller{}
+	txBytes, err := marshaller.MarshalGossip(&msg)
 	assert.NoError(err)
 
 	vm.ctx.Lock.Unlock()
 
+	msgBytes, err := buildAtomicPushGossip(txBytes)
+	assert.NoError(err)
 	assert.NoError(vm.AppGossip(context.Background(), nodeID, msgBytes))
 
 	vm.ctx.Lock.Lock()
@@ -168,21 +177,15 @@ func TestMempoolAtmTxsAppGossipHandlingDiscardedTx(t *testing.T) {
 	assert.Zero(txGossiped, "tx should not have been gossiped")
 	txGossipedLock.Unlock()
 
-	assert.False(mempool.has(txID))
-
-	// Gossip the transaction that conflicts with the originally
-	// discarded tx and ensure it is accepted into the mempool and gossipped
-	// to the network.
-	nodeID = ids.GenerateTestNodeID()
-	msg = message.AtomicTxGossip{
-		Tx: conflictingTx.SignedBytes(),
-	}
-	msgBytes, err = message.BuildGossipMessage(vm.networkCodec, msg)
-	assert.NoError(err)
+	assert.False(mempool.Has(txID))
 
 	vm.ctx.Lock.Unlock()
 
-	assert.NoError(vm.AppGossip(context.Background(), nodeID, msgBytes))
+	// Conflicting tx must be submitted over the API to be included in push gossip.
+	// (i.e., txs received via p2p are not included in push gossip)
+	// This test adds it directly to the mempool + gossiper to simulate that.
+	vm.mempool.AddRemoteTx(conflictingTx)
+	vm.atomicTxPushGossiper.Add(&atomic.GossipAtomicTx{Tx: conflictingTx})
 	time.Sleep(500 * time.Millisecond)
 
 	vm.ctx.Lock.Lock()
@@ -192,6 +195,19 @@ func TestMempoolAtmTxsAppGossipHandlingDiscardedTx(t *testing.T) {
 	assert.Equal(1, txGossiped, "conflicting tx should have been gossiped")
 	txGossipedLock.Unlock()
 
-	assert.False(mempool.has(txID))
-	assert.True(mempool.has(conflictingTx.ID()))
+	assert.False(mempool.Has(txID))
+	assert.True(mempool.Has(conflictingTx.ID()))
+}
+
+func buildAtomicPushGossip(txBytes []byte) ([]byte, error) {
+	inboundGossip := &sdk.PushGossip{
+		Gossip: [][]byte{txBytes},
+	}
+	inboundGossipBytes, err := proto.Marshal(inboundGossip)
+	if err != nil {
+		return nil, err
+	}
+
+	inboundGossipMsg := append(binary.AppendUvarint(nil, p2p.AtomicTxGossipHandlerID), inboundGossipBytes...)
+	return inboundGossipMsg, nil
 }

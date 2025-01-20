@@ -8,7 +8,6 @@ import (
 	"crypto/ecdsa"
 	"encoding/json"
 	"math/big"
-	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -21,14 +20,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/rlp"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/ava-labs/coreth/core"
 	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/coreth/params"
-	"github.com/ava-labs/coreth/plugin/evm/message"
 )
 
 func fundAddressByGenesis(addrs []common.Address) (string, error) {
@@ -37,9 +34,9 @@ func fundAddressByGenesis(addrs []common.Address) (string, error) {
 		Difficulty: common.Big0,
 		GasLimit:   uint64(5000000),
 	}
-	funds := make(map[common.Address]core.GenesisAccount)
+	funds := make(map[common.Address]types.GenesisAccount)
 	for _, addr := range addrs {
-		funds[addr] = core.GenesisAccount{
+		funds[addr] = types.GenesisAccount{
 			Balance: balance,
 		}
 	}
@@ -76,9 +73,6 @@ func getValidEthTxs(key *ecdsa.PrivateKey, count int, gasPrice *big.Int) []*type
 // show that a geth tx discovered from gossip is requested to the same node that
 // gossiped it
 func TestMempoolEthTxsAppGossipHandling(t *testing.T) {
-	if os.Getenv("RUN_FLAKY_TESTS") != "true" {
-		t.Skip("FLAKY")
-	}
 	assert := assert.New(t)
 
 	key, err := crypto.GenerateKey()
@@ -115,17 +109,9 @@ func TestMempoolEthTxsAppGossipHandling(t *testing.T) {
 	// prepare a tx
 	tx := getValidEthTxs(key, 1, common.Big1)[0]
 
-	// show that unknown coreth hashes is requested
-	txBytes, err := rlp.EncodeToBytes([]*types.Transaction{tx})
-	assert.NoError(err)
-	msg := message.EthTxsGossip{
-		Txs: txBytes,
-	}
-	msgBytes, err := message.BuildGossipMessage(vm.networkCodec, msg)
-	assert.NoError(err)
-
-	nodeID := ids.GenerateTestNodeID()
-	err = vm.AppGossip(context.Background(), nodeID, msgBytes)
+	// Txs must be submitted over the API to be included in push gossip.
+	// (i.e., txs received via p2p are not included in push gossip)
+	err = vm.eth.APIBackend.SendTx(context.Background(), tx)
 	assert.NoError(err)
 	assert.False(txRequested, "tx should not be requested")
 

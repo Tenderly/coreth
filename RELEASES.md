@@ -1,5 +1,53 @@
 # Release Notes
 
+## Pending Release
+
+## [v0.14.1](https://github.com/ava-labs/coreth/releases/tag/v0.14.1)
+
+- Removed deprecated `ExportKey`, `ExportAVAX`, `Export`, `ImportKey`, `ImportAVAX`, `Import` APIs
+- IMPORTANT: `eth_getProof` calls for historical state will be rejected by default.
+  - On archive nodes (`"pruning-enabled": false`): queries for historical proofs for state older than approximately 24 hours preceding the last accepted block will be rejected by default. This can be adjusted with the new option `historical-proof-query-window` which defines the number of blocks before the last accepted block which should be accepted for state proof queries, or set to `0` to accept any block number state query (previous behavior).
+  - On `pruning` nodes: queries for proofs past the tip buffer (32 blocks) will be rejected. This is in support of moving to a path based storage scheme, which does not support historical state proofs.
+- Remove API eth_getAssetBalance that was used to query ANT balances (deprecated since v0.10.0)
+- Remove legacy gossip handler and metrics (deprecated since v0.10.0)
+- Refactored trie_prefetcher.go to be structurally similar to [upstream](https://github.com/ethereum/go-ethereum/tree/v1.13.14).
+
+## [v0.14.0](https://github.com/ava-labs/coreth/releases/tag/v0.14.0)
+- Minor version update to correspond to avalanchego v1.12.0 / Etna.
+- Remove unused historical opcodes CALLEX, BALANCEMC
+- Remove unused pre-AP2 handling of genesis contract
+- Fix to track tx size in block building
+- Test fixes
+- Update go version to 1.22
+
+## [v0.13.8](https://github.com/ava-labs/coreth/releases/tag/v0.13.8)
+- Update geth dependency to v1.13.14
+- eupgrade: lowering the base fee to 1 nAVAX
+- eupgrade/cancun: verify no blobs in header
+- Supports ACP-118 message types
+- Gets network upgrade timestamps from avalanchego
+- Remove cross-chain handlers
+
+## [v0.13.7](https://github.com/ava-labs/coreth/releases/tag/v0.13.7)
+- Add EUpgrade base definitions
+- Remove Block Status
+- Fix and improve "GetBlockIDAtHeight"
+- Bump golang version requirement to 1.21.12
+- Bump AvalancheGo to v1.11.10-prerelease
+
+## [v0.13.6](https://github.com/ava-labs/coreth/releases/tag/v0.13.6)
+- rpc: truncate call error data logs
+- logging: remove path prefix (up to coreth@version/) from logged file names.
+- cleanup: removes pre-Durango scripts
+
+## [v0.13.5](https://github.com/ava-labs/coreth/releases/tag/v0.13.5)
+- Bump AvalancheGo to v1.11.7
+- Bump golang version requirement to 1.21.12
+- Switches timestamp log back to "timestamp" (as was before v0.13.4)
+- Add missing fields to "toCallArg"
+- Fix state sync ETA overflow
+- Fix state sync crash bug
+
 ## [v0.13.4](https://github.com/ava-labs/coreth/releases/tag/v0.13.4)
 - Fixes snapshot use when state sync was explicitly enabled
 - Fixes v0.13.3 locking regression in async snapshot generation

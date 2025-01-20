@@ -42,9 +42,11 @@ import (
 	"github.com/ava-labs/coreth/trie"
 	"github.com/ava-labs/coreth/trie/trienode"
 	"github.com/ava-labs/coreth/trie/triestate"
+	"github.com/ava-labs/coreth/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/holiman/uint256"
 )
 
 const (
@@ -200,16 +202,33 @@ func NewWithSnapshot(root common.Hash, db Database, snap snapshot.Snapshot) (*St
 	return sdb, nil
 }
 
+type workerPool struct {
+	*utils.BoundedWorkers
+}
+
+func (wp *workerPool) Done() {
+	// Done is guaranteed to only be called after all work is already complete,
+	// so Wait()ing is redundant, but it also releases resources.
+	wp.BoundedWorkers.Wait()
+}
+
+func WithConcurrentWorkers(prefetchers int) PrefetcherOption {
+	pool := &workerPool{
+		BoundedWorkers: utils.NewBoundedWorkers(prefetchers),
+	}
+	return WithWorkerPools(func() WorkerPool { return pool })
+}
+
 // StartPrefetcher initializes a new trie prefetcher to pull in nodes from the
 // state trie concurrently while the state is mutated so that when we reach the
 // commit phase, most of the needed data is already hot.
-func (s *StateDB) StartPrefetcher(namespace string, maxConcurrency int) {
+func (s *StateDB) StartPrefetcher(namespace string, opts ...PrefetcherOption) {
 	if s.prefetcher != nil {
 		s.prefetcher.close()
 		s.prefetcher = nil
 	}
 	if s.snap != nil {
-		s.prefetcher = newTriePrefetcher(s.db, s.originalRoot, namespace, maxConcurrency)
+		s.prefetcher = newTriePrefetcher(s.db, s.originalRoot, namespace, opts...)
 	}
 }
 
@@ -333,12 +352,12 @@ func (s *StateDB) Empty(addr common.Address) bool {
 }
 
 // GetBalance retrieves the balance from the given address or 0 if object not found
-func (s *StateDB) GetBalance(addr common.Address) *big.Int {
+func (s *StateDB) GetBalance(addr common.Address) *uint256.Int {
 	stateObject := s.getStateObject(addr)
 	if stateObject != nil {
 		return stateObject.Balance()
 	}
-	return new(big.Int).Set(common.Big0)
+	return common.U2560
 }
 
 // Retrieve the balance from the given address or 0 if object not found
@@ -393,10 +412,10 @@ func (s *StateDB) GetCodeSize(addr common.Address) int {
 
 func (s *StateDB) GetCodeHash(addr common.Address) common.Hash {
 	stateObject := s.getStateObject(addr)
-	if stateObject == nil {
-		return common.Hash{}
+	if stateObject != nil {
+		return common.BytesToHash(stateObject.CodeHash())
 	}
-	return common.BytesToHash(stateObject.CodeHash())
+	return common.Hash{}
 }
 
 // GetState retrieves a value from the given account's storage trie.
@@ -446,23 +465,23 @@ func (s *StateDB) HasSelfDestructed(addr common.Address) bool {
  */
 
 // AddBalance adds amount to the account associated with addr.
-func (s *StateDB) AddBalance(addr common.Address, amount *big.Int) {
-	stateObject := s.GetOrNewStateObject(addr)
+func (s *StateDB) AddBalance(addr common.Address, amount *uint256.Int) {
+	stateObject := s.getOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.AddBalance(amount)
 	}
 }
 
 // SubBalance subtracts amount from the account associated with addr.
-func (s *StateDB) SubBalance(addr common.Address, amount *big.Int) {
-	stateObject := s.GetOrNewStateObject(addr)
+func (s *StateDB) SubBalance(addr common.Address, amount *uint256.Int) {
+	stateObject := s.getOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SubBalance(amount)
 	}
 }
 
-func (s *StateDB) SetBalance(addr common.Address, amount *big.Int) {
-	stateObject := s.GetOrNewStateObject(addr)
+func (s *StateDB) SetBalance(addr common.Address, amount *uint256.Int) {
+	stateObject := s.getOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SetBalance(amount)
 	}
@@ -470,7 +489,7 @@ func (s *StateDB) SetBalance(addr common.Address, amount *big.Int) {
 
 // AddBalance adds amount to the account associated with addr.
 func (s *StateDB) AddBalanceMultiCoin(addr common.Address, coinID common.Hash, amount *big.Int) {
-	stateObject := s.GetOrNewStateObject(addr)
+	stateObject := s.getOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.AddBalanceMultiCoin(coinID, amount, s.db)
 	}
@@ -478,35 +497,35 @@ func (s *StateDB) AddBalanceMultiCoin(addr common.Address, coinID common.Hash, a
 
 // SubBalance subtracts amount from the account associated with addr.
 func (s *StateDB) SubBalanceMultiCoin(addr common.Address, coinID common.Hash, amount *big.Int) {
-	stateObject := s.GetOrNewStateObject(addr)
+	stateObject := s.getOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SubBalanceMultiCoin(coinID, amount, s.db)
 	}
 }
 
 func (s *StateDB) SetBalanceMultiCoin(addr common.Address, coinID common.Hash, amount *big.Int) {
-	stateObject := s.GetOrNewStateObject(addr)
+	stateObject := s.getOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SetBalanceMultiCoin(coinID, amount, s.db)
 	}
 }
 
 func (s *StateDB) SetNonce(addr common.Address, nonce uint64) {
-	stateObject := s.GetOrNewStateObject(addr)
+	stateObject := s.getOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SetNonce(nonce)
 	}
 }
 
 func (s *StateDB) SetCode(addr common.Address, code []byte) {
-	stateObject := s.GetOrNewStateObject(addr)
+	stateObject := s.getOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SetCode(crypto.Keccak256Hash(code), code)
 	}
 }
 
 func (s *StateDB) SetState(addr common.Address, key, value common.Hash) {
-	stateObject := s.GetOrNewStateObject(addr)
+	stateObject := s.getOrNewStateObject(addr)
 	if stateObject != nil {
 		NormalizeStateKey(&key)
 		stateObject.SetState(key, value)
@@ -528,7 +547,7 @@ func (s *StateDB) SetStorage(addr common.Address, storage map[common.Hash]common
 	if _, ok := s.stateObjectsDestruct[addr]; !ok {
 		s.stateObjectsDestruct[addr] = nil
 	}
-	stateObject := s.GetOrNewStateObject(addr)
+	stateObject := s.getOrNewStateObject(addr)
 	for k, v := range storage {
 		stateObject.SetState(k, v)
 	}
@@ -547,10 +566,10 @@ func (s *StateDB) SelfDestruct(addr common.Address) {
 	s.journal.append(selfDestructChange{
 		account:     &addr,
 		prev:        stateObject.selfDestructed,
-		prevbalance: new(big.Int).Set(stateObject.Balance()),
+		prevbalance: new(uint256.Int).Set(stateObject.Balance()),
 	})
 	stateObject.markSelfdestructed()
-	stateObject.data.Balance = new(big.Int)
+	stateObject.data.Balance = new(uint256.Int)
 }
 
 func (s *StateDB) Selfdestruct6780(addr common.Address) {
@@ -712,8 +731,8 @@ func (s *StateDB) setStateObject(object *stateObject) {
 	s.stateObjects[object.Address()] = object
 }
 
-// GetOrNewStateObject retrieves a state object or create a new state object if nil.
-func (s *StateDB) GetOrNewStateObject(addr common.Address) *stateObject {
+// getOrNewStateObject retrieves a state object or create a new state object if nil.
+func (s *StateDB) getOrNewStateObject(addr common.Address) *stateObject {
 	stateObject := s.getStateObject(addr)
 	if stateObject == nil {
 		stateObject, _ = s.createObject(addr)
@@ -1262,14 +1281,14 @@ func (s *StateDB) handleDestruction(nodes *trienode.MergedNodeSet) (map[common.A
 }
 
 // Commit writes the state to the underlying in-memory trie database.
-func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool, referenceRoot bool) (common.Hash, error) {
-	return s.commit(block, deleteEmptyObjects, nil, common.Hash{}, common.Hash{}, referenceRoot)
+func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, error) {
+	return s.commit(block, deleteEmptyObjects, nil, common.Hash{}, common.Hash{})
 }
 
 // CommitWithSnap writes the state to the underlying in-memory trie database and
 // generates a snapshot layer for the newly committed state.
-func (s *StateDB) CommitWithSnap(block uint64, deleteEmptyObjects bool, snaps *snapshot.Tree, blockHash, parentHash common.Hash, referenceRoot bool) (common.Hash, error) {
-	return s.commit(block, deleteEmptyObjects, snaps, blockHash, parentHash, referenceRoot)
+func (s *StateDB) CommitWithSnap(block uint64, deleteEmptyObjects bool, snaps *snapshot.Tree, blockHash, parentHash common.Hash) (common.Hash, error) {
+	return s.commit(block, deleteEmptyObjects, snaps, blockHash, parentHash)
 }
 
 // Once the state is committed, tries cached in stateDB (including account
@@ -1279,7 +1298,7 @@ func (s *StateDB) CommitWithSnap(block uint64, deleteEmptyObjects bool, snaps *s
 //
 // The associated block number of the state transition is also provided
 // for more chain context.
-func (s *StateDB) commit(block uint64, deleteEmptyObjects bool, snaps *snapshot.Tree, blockHash, parentHash common.Hash, referenceRoot bool) (common.Hash, error) {
+func (s *StateDB) commit(block uint64, deleteEmptyObjects bool, snaps *snapshot.Tree, blockHash, parentHash common.Hash) (common.Hash, error) {
 	// Short circuit in case any database failure occurred earlier.
 	if s.dbErr != nil {
 		return common.Hash{}, fmt.Errorf("commit aborted due to earlier error: %v", s.dbErr)
@@ -1388,14 +1407,8 @@ func (s *StateDB) commit(block uint64, deleteEmptyObjects bool, snaps *snapshot.
 	if root != origin {
 		start := time.Now()
 		set := triestate.New(s.accountsOrigin, s.storagesOrigin, incomplete)
-		if referenceRoot {
-			if err := s.db.TrieDB().UpdateAndReferenceRoot(root, origin, block, nodes, set); err != nil {
-				return common.Hash{}, err
-			}
-		} else {
-			if err := s.db.TrieDB().Update(root, origin, block, nodes, set); err != nil {
-				return common.Hash{}, err
-			}
+		if err := s.db.TrieDB().Update(root, origin, block, nodes, set); err != nil {
+			return common.Hash{}, err
 		}
 		s.originalRoot = root
 		if metrics.EnabledExpensive {
