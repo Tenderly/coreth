@@ -7,9 +7,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/coreth/core/vm"
 	"math/big"
 	"slices"
+
+	"github.com/ava-labs/coreth/core/vm"
 
 	"github.com/ava-labs/coreth/params"
 	"github.com/holiman/uint256"

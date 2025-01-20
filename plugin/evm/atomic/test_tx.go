@@ -4,9 +4,10 @@
 package atomic
 
 import (
-	"github.com/ava-labs/coreth/core/vm"
 	"math/big"
 	"math/rand"
+
+	"github.com/ava-labs/coreth/core/vm"
 
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/codec/linearcodec"

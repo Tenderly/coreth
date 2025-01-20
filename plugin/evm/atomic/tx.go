@@ -8,9 +8,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/coreth/core/vm"
 	"math/big"
 	"sort"
+
+	"github.com/ava-labs/coreth/core/vm"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/holiman/uint256"
