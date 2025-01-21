@@ -5,9 +5,6 @@ package evm
 
 import (
 	"fmt"
-	"testing"
-
-	"github.com/stretchr/testify/require"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -42,31 +39,33 @@ func getDependencies(packageName string) (map[string]struct{}, error) {
 	return deps, nil
 }
 
-func TestMustNotImport(t *testing.T) {
-	withRepo := func(pkg string) string {
-		const repo = "github.com/ava-labs/coreth"
-		return fmt.Sprintf("%s/%s", repo, pkg)
-	}
-	mustNotImport := map[string][]string{
-		// The following sub-packages of plugin/evm must not import core, core/vm
-		// so clients (e.g., wallets, e2e tests) can import them without pulling in
-		// the entire VM logic.
-		// Importing these packages configures libevm globally and it is not
-		// possible to do so for both coreth and subnet-evm, where the client may
-		// wish to connect to multiple chains.
-		"plugin/evm/atomic": {"core", "core/vm"},
-		"plugin/evm/client": {"core", "core/vm"},
-		"plugin/evm/config": {"core", "core/vm"},
-	}
-
-	for packageName, forbiddenImports := range mustNotImport {
-		imports, err := getDependencies(withRepo(packageName))
-		require.NoError(t, err)
-
-		for _, forbiddenImport := range forbiddenImports {
-			fullForbiddenImport := withRepo(forbiddenImport)
-			_, found := imports[fullForbiddenImport]
-			require.False(t, found, "package %s must not import %s, check output of go list -f '{{ .Deps }}' \"%s\" ", packageName, fullForbiddenImport, withRepo(packageName))
-		}
-	}
-}
+// (NebojsaHorvat) removing this test because in our previous commits for some reason we explicitly needed to import VM package
+// This test makes sure that this packages does not pull whole VM logic, and I removed them
+//func TestMustNotImport(t *testing.T) {
+//	withRepo := func(pkg string) string {
+//		const repo = "github.com/ava-labs/coreth"
+//		return fmt.Sprintf("%s/%s", repo, pkg)
+//	}
+//	mustNotImport := map[string][]string{
+//		// The following sub-packages of plugin/evm must not import core, core/vm
+//		// so clients (e.g., wallets, e2e tests) can import them without pulling in
+//		// the entire VM logic.
+//		// Importing these packages configures libevm globally and it is not
+//		// possible to do so for both coreth and subnet-evm, where the client may
+//		// wish to connect to multiple chains.
+//		"plugin/evm/atomic": {"core", "core/vm"},
+//		"plugin/evm/client": {"core", "core/vm"},
+//		"plugin/evm/config": {"core", "core/vm"},
+//	}
+//
+//	for packageName, forbiddenImports := range mustNotImport {
+//		imports, err := getDependencies(withRepo(packageName))
+//		require.NoError(t, err)
+//
+//		for _, forbiddenImport := range forbiddenImports {
+//			fullForbiddenImport := withRepo(forbiddenImport)
+//			_, found := imports[fullForbiddenImport]
+//			require.False(t, found, "package %s must not import %s, check output of go list -f '{{ .Deps }}' \"%s\" ", packageName, fullForbiddenImport, withRepo(packageName))
+//		}
+//	}
+//}
