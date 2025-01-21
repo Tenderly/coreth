@@ -5,6 +5,7 @@ package evm
 
 import (
 	"fmt"
+
 	"golang.org/x/tools/go/packages"
 )
 
