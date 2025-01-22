@@ -42,10 +42,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/blake2b"
-	//bls12381 "github.com/ethereum/go-ethereum/crypto/bls12381"
-	"github.com/Tenderly/bls12381"
 	"github.com/ethereum/go-ethereum/crypto/bn256"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
+	//bls12381 "github.com/ethereum/go-ethereum/crypto/bls12381"
+	"github.com/tenderly/bls12381"
 	"golang.org/x/crypto/ripemd160"
 )
 
