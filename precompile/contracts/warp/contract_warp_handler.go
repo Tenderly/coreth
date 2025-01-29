@@ -5,6 +5,7 @@ package warp
 
 import (
 	"fmt"
+	math2 "math"
 
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
@@ -55,7 +56,7 @@ func handleWarpMessage(accessibleState contract.AccessibleState, input []byte, s
 	if err != nil {
 		return nil, remainingGas, fmt.Errorf("%w: %s", errInvalidIndexInput, err)
 	}
-	if warpIndexInput > math.MaxInt32 {
+	if warpIndexInput > math2.MaxInt32 {
 		return nil, remainingGas, fmt.Errorf("%w: larger than MaxInt32", errInvalidIndexInput)
 	}
 	warpIndex := int(warpIndexInput) // This conversion is safe even if int is 32 bits because we checked above.
