@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/crypto"
 	"math/big"
 
 	"github.com/ava-labs/coreth/core/vm"
@@ -241,7 +242,7 @@ func (utx *UnsignedExportTx) SemanticVerify(
 		if err != nil {
 			return err
 		}
-		if input.Address != pubKey.EthAddress() {
+		if input.Address != crypto.PubkeyToAddress(*pubKey.ToECDSA()) {
 			return errPublicKeySignatureMismatch
 		}
 	}
@@ -432,7 +433,7 @@ func GetSpendableFunds(
 		if amount == 0 {
 			break
 		}
-		addr := key.EthAddress()
+		addr := crypto.PubkeyToAddress(*key.PublicKey().ToECDSA())
 		var balance uint64
 		if assetID == ctx.AVAXAssetID {
 			// If the asset is AVAX, we divide by the x2cRate to convert back to the correct
@@ -515,7 +516,7 @@ func GetSpendableAVAXWithFee(
 
 		additionalFee := newFee - prevFee
 
-		addr := key.EthAddress()
+		addr := crypto.PubkeyToAddress(*key.PublicKey().ToECDSA())
 		// Since the asset is AVAX, we divide by the x2cRate to convert back to
 		// the correct denomination of AVAX that can be exported.
 		balance := new(uint256.Int).Div(state.GetBalance(addr), X2CRate).Uint64()
