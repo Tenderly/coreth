@@ -5,6 +5,7 @@ package database
 
 import (
 	"errors"
+	"github.com/ava-labs/coreth/core/state/snapshot"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -13,7 +14,8 @@ import (
 var (
 	_ ethdb.KeyValueStore = &ethDbWrapper{}
 
-	ErrSnapshotNotSupported = errors.New("snapshot is not supported")
+	ErrSnapshotNotSupported    = errors.New("snapshot is not supported")
+	ErrDeleteRangeNotSupported = errors.New("delete range is not supported - custom tenderly error")
 )
 
 // ethDbWrapper implements ethdb.Database
@@ -22,7 +24,14 @@ type ethDbWrapper struct{ database.Database }
 func WrapDatabase(db database.Database) ethdb.KeyValueStore { return ethDbWrapper{db} }
 
 // Stat implements ethdb.Database
-func (db ethDbWrapper) Stat(string) (string, error) { return "", database.ErrNotFound }
+// func (db ethDbWrapper) Stat(string) (string, error) { return "", database.ErrNotFound }
+func (db ethDbWrapper) Stat() (string, error) {
+	return "", database.ErrNotFound
+}
+
+func (db ethDbWrapper) DeleteRange(start, end []byte) error {
+	return ErrDeleteRangeNotSupported
+}
 
 // NewBatch implements ethdb.Database
 func (db ethDbWrapper) NewBatch() ethdb.Batch { return wrappedBatch{db.Database.NewBatch()} }
@@ -33,7 +42,7 @@ func (db ethDbWrapper) NewBatchWithSize(size int) ethdb.Batch {
 	return wrappedBatch{db.Database.NewBatch()}
 }
 
-func (db ethDbWrapper) NewSnapshot() (ethdb.Snapshot, error) {
+func (db ethDbWrapper) NewSnapshot() (snapshot.Snapshot, error) {
 	return nil, ErrSnapshotNotSupported
 }
 
