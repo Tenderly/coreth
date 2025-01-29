@@ -37,6 +37,26 @@ type table struct {
 	prefix string
 }
 
+// TODO (nebojsahorvat) Custom start implementation, change with official one when they implement it
+func (t *table) DeleteRange(start, end []byte) error {
+	panic("implement me")
+}
+
+// Stat returns a particular internal stat of the database.
+//
+//	func (t *table) Stat(property string) (string, error) {
+//		return t.db.Stat(property)
+//	}
+//
+// TODO (nebojsahorvat) Custom start implementation, change with official one when they implement it
+func (t *table) Stat() (string, error) {
+	s, err := t.db.Stat()
+	if err != nil {
+		return "", err
+	}
+	return s, nil
+}
+
 // NewTable returns a database object that prefixes all keys with a given string.
 func NewTable(db ethdb.Database, prefix string) ethdb.Database {
 	return &table{
@@ -123,11 +143,12 @@ func (t *table) Sync() error {
 	return t.db.Sync()
 }
 
-// MigrateTable processes the entries in a given table in sequence
-// converting them to a new format if they're of an old format.
-func (t *table) MigrateTable(kind string, convert convertLegacyFn) error {
-	return t.db.MigrateTable(kind, convert)
-}
+// TODO (nebojsahorvat) Check why this is this no longer part of API
+//// MigrateTable processes the entries in a given table in sequence
+//// converting them to a new format if they're of an old format.
+//func (t *table) MigrateTable(kind string, convert convertLegacyFn) error {
+//	return t.db.MigrateTable(kind, convert)
+//}
 
 // AncientDatadir returns the ancient datadir of the underlying database.
 func (t *table) AncientDatadir() (string, error) {
@@ -155,11 +176,6 @@ func (t *table) NewIterator(prefix []byte, start []byte) ethdb.Iterator {
 		iter:   iter,
 		prefix: t.prefix,
 	}
-}
-
-// Stat returns a particular internal stat of the database.
-func (t *table) Stat(property string) (string, error) {
-	return t.db.Stat(property)
 }
 
 // Compact flattens the underlying data store for the given key range. In essence,
@@ -210,12 +226,13 @@ func (t *table) NewBatchWithSize(size int) ethdb.Batch {
 	return &tableBatch{t.db.NewBatchWithSize(size), t.prefix}
 }
 
+// TODO (nebojsahorvat) Check why this is this no longer part of API
 // NewSnapshot creates a database snapshot based on the current state.
 // The created snapshot will not be affected by all following mutations
 // happened on the database.
-func (t *table) NewSnapshot() (ethdb.Snapshot, error) {
-	return t.db.NewSnapshot()
-}
+//func (t *table) NewSnapshot() (ethdb.Snapshot, error) {
+//	return t.db.NewSnapshot()
+//}
 
 // tableBatch is a wrapper around a database batch that prefixes each key access
 // with a pre-configured string.
