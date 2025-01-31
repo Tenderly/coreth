@@ -28,6 +28,7 @@ package gasprice
 
 import (
 	"context"
+	math2 "github.com/ava-labs/coreth/common/math"
 	"math/big"
 	"sync"
 
@@ -39,7 +40,6 @@ import (
 	"github.com/ava-labs/coreth/rpc"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/lru"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"golang.org/x/exp/slices"
@@ -229,7 +229,7 @@ func (oracle *Oracle) EstimateBaseFee(ctx context.Context) (*big.Int, error) {
 		return nil, nil
 	}
 
-	baseFee = math.BigMin(baseFee, nextBaseFee)
+	baseFee = math2.BigMin(baseFee, nextBaseFee)
 	return baseFee, nil
 }
 
@@ -274,7 +274,7 @@ func (oracle *Oracle) SuggestPrice(ctx context.Context) (*big.Int, error) {
 	// Separately from checking the error value, check that [nextBaseFee] is non-nil
 	// before attempting to take the minimum.
 	if nextBaseFee != nil {
-		baseFee = math.BigMin(baseFee, nextBaseFee)
+		baseFee = math2.BigMin(baseFee, nextBaseFee)
 	}
 
 	return new(big.Int).Add(tip, baseFee), nil
