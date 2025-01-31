@@ -6,6 +6,8 @@ package dummy
 import (
 	"encoding/binary"
 	"fmt"
+	math2 "github.com/ava-labs/coreth/common/math"
+	math3 "math"
 	"math/big"
 
 	"github.com/ava-labs/avalanchego/utils/wrappers"
@@ -122,14 +124,14 @@ func CalcBaseFee(config *params.ChainConfig, parent *types.Header, timestamp uin
 		// Compute the new state of the gas rolling window.
 		addedGas, overflow := math.SafeAdd(parent.GasUsed, parentExtraStateGasUsed)
 		if overflow {
-			addedGas = math.MaxUint64
+			addedGas = math3.MaxUint64
 		}
 
 		// Only add the [blockGasCost] to the gas used if it isn't AP5
 		if !isApricotPhase5 {
 			addedGas, overflow = math.SafeAdd(addedGas, blockGasCost)
 			if overflow {
-				addedGas = math.MaxUint64
+				addedGas = math3.MaxUint64
 			}
 		}
 
@@ -153,7 +155,7 @@ func CalcBaseFee(config *params.ChainConfig, parent *types.Header, timestamp uin
 		num.Mul(num, parent.BaseFee)
 		num.Div(num, parentGasTargetBig)
 		num.Div(num, baseFeeChangeDenominator)
-		baseFeeDelta := math.BigMax(num, common.Big1)
+		baseFeeDelta := math2.BigMax(num, common.Big1)
 
 		baseFee.Add(baseFee, baseFeeDelta)
 	} else {
@@ -162,7 +164,7 @@ func CalcBaseFee(config *params.ChainConfig, parent *types.Header, timestamp uin
 		num.Mul(num, parent.BaseFee)
 		num.Div(num, parentGasTargetBig)
 		num.Div(num, baseFeeChangeDenominator)
-		baseFeeDelta := math.BigMax(num, common.Big1)
+		baseFeeDelta := math2.BigMax(num, common.Big1)
 		// If [roll] is greater than [rollupWindow], apply the state transition to the base fee to account
 		// for the interval during which no blocks were produced.
 		// We use roll/rollupWindow, so that the transition is applied for every [rollupWindow] seconds
@@ -266,7 +268,7 @@ func sumLongWindow(window []byte, numLongs int) uint64 {
 		// uint64 value immediately.
 		sum, overflow = math.SafeAdd(sum, binary.BigEndian.Uint64(window[wrappers.LongLen*i:]))
 		if overflow {
-			return math.MaxUint64
+			return math3.MaxUint64
 		}
 	}
 	return sum
@@ -280,7 +282,7 @@ func updateLongWindow(window []byte, start uint64, gasConsumed uint64) {
 
 	totalGasConsumed, overflow := math.SafeAdd(prevGasConsumed, gasConsumed)
 	if overflow {
-		totalGasConsumed = math.MaxUint64
+		totalGasConsumed = math3.MaxUint64
 	}
 	binary.BigEndian.PutUint64(window[start:], totalGasConsumed)
 }
@@ -317,7 +319,7 @@ func calcBlockGasCost(
 
 	blockGasCost = selectBigWithinBounds(minBlockGasCost, blockGasCost, maxBlockGasCost)
 	if !blockGasCost.IsUint64() {
-		blockGasCost = new(big.Int).SetUint64(math.MaxUint64)
+		blockGasCost = new(big.Int).SetUint64(math3.MaxUint64)
 	}
 	return blockGasCost
 }
