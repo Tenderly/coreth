@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/holiman/uint256"
-	"golang.org/x/exp/slog"
+	"log/slog"
 )
 
 type discardHandler struct{}

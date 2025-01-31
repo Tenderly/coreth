@@ -21,7 +21,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/holiman/uint256"
-	"golang.org/x/exp/slog"
+	"log/slog"
 )
 
 const (
