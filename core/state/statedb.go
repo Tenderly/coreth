@@ -31,8 +31,8 @@ package state
 import (
 	"math/big"
 
-	"github.com/ava-labs/coreth/plugin/evm/customtypes"
-	"github.com/ava-labs/coreth/utils"
+	"github.com/tenderly/coreth/plugin/evm/customtypes"
+	"github.com/tenderly/coreth/utils"
 	"github.com/ava-labs/libevm/common"
 	ethstate "github.com/ava-labs/libevm/core/state"
 	"github.com/holiman/uint256"

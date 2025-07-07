@@ -10,8 +10,8 @@ import (
 	"math/big"
 
 	"github.com/ava-labs/avalanchego/upgrade"
-	"github.com/ava-labs/coreth/params/extras"
-	"github.com/ava-labs/coreth/utils"
+	"github.com/tenderly/coreth/params/extras"
+	"github.com/tenderly/coreth/utils"
 )
 
 const (

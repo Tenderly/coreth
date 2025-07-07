@@ -10,11 +10,11 @@ import (
 	"github.com/ava-labs/avalanchego/database/versiondb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p"
-	"github.com/ava-labs/coreth/core"
-	"github.com/ava-labs/coreth/params"
-	"github.com/ava-labs/coreth/plugin/evm/config"
-	"github.com/ava-labs/coreth/plugin/evm/extension"
-	vmsync "github.com/ava-labs/coreth/plugin/evm/sync"
+	"github.com/tenderly/coreth/core"
+	"github.com/tenderly/coreth/params"
+	"github.com/tenderly/coreth/plugin/evm/config"
+	"github.com/tenderly/coreth/plugin/evm/extension"
+	vmsync "github.com/tenderly/coreth/plugin/evm/sync"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

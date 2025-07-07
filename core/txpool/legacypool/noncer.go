@@ -30,7 +30,7 @@ package legacypool
 import (
 	"sync"
 
-	"github.com/ava-labs/coreth/core/state"
+	"github.com/tenderly/coreth/core/state"
 	"github.com/ava-labs/libevm/common"
 )
 

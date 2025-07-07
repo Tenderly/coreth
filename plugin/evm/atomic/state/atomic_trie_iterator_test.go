@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/coreth/plugin/evm/atomic/atomictest"
+	"github.com/tenderly/coreth/plugin/evm/atomic/atomictest"
 )
 
 func TestIteratorCanIterate(t *testing.T) {

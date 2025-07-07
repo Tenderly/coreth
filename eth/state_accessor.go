@@ -33,9 +33,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ava-labs/coreth/core"
-	"github.com/ava-labs/coreth/core/state"
-	"github.com/ava-labs/coreth/eth/tracers"
+	"github.com/tenderly/coreth/core"
+	"github.com/tenderly/coreth/core/state"
+	"github.com/tenderly/coreth/eth/tracers"
 	"github.com/ava-labs/libevm/common"
 	"github.com/ava-labs/libevm/core/rawdb"
 	"github.com/ava-labs/libevm/core/types"

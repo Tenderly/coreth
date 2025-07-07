@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/coreth/metrics/metricstest"
+	"github.com/tenderly/coreth/metrics/metricstest"
 	"github.com/ava-labs/libevm/metrics"
 )
 

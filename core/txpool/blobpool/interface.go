@@ -28,8 +28,8 @@
 package blobpool
 
 import (
-	"github.com/ava-labs/coreth/core/state"
-	"github.com/ava-labs/coreth/params"
+	"github.com/tenderly/coreth/core/state"
+	"github.com/tenderly/coreth/params"
 	"github.com/ava-labs/libevm/common"
 	"github.com/ava-labs/libevm/core/types"
 )

@@ -9,9 +9,9 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ava-labs/coreth/accounts/abi/bind"
-	"github.com/ava-labs/coreth/ethclient"
-	"github.com/ava-labs/coreth/plugin/evm/upgrade/ap1"
+	"github.com/tenderly/coreth/accounts/abi/bind"
+	"github.com/tenderly/coreth/ethclient"
+	"github.com/tenderly/coreth/plugin/evm/upgrade/ap1"
 	"github.com/ava-labs/libevm/common"
 	"github.com/ava-labs/libevm/core/types"
 	"github.com/ava-labs/libevm/crypto"

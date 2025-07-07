@@ -7,8 +7,8 @@ import (
 
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 
-	"github.com/ava-labs/coreth/plugin/evm/atomic/state"
-	"github.com/ava-labs/coreth/plugin/evm/sync"
+	"github.com/tenderly/coreth/plugin/evm/atomic/state"
+	"github.com/tenderly/coreth/plugin/evm/sync"
 
 	"github.com/ava-labs/libevm/common"
 	"github.com/ava-labs/libevm/core/types"

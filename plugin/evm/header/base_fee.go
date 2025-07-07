@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ava-labs/coreth/params/extras"
+	"github.com/tenderly/coreth/params/extras"
 	"github.com/ava-labs/libevm/core/types"
 )
 

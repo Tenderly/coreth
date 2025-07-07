@@ -18,10 +18,10 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/network/p2p/gossip"
 
-	"github.com/ava-labs/coreth/core"
-	"github.com/ava-labs/coreth/core/txpool"
-	"github.com/ava-labs/coreth/eth"
-	"github.com/ava-labs/coreth/plugin/evm/config"
+	"github.com/tenderly/coreth/core"
+	"github.com/tenderly/coreth/core/txpool"
+	"github.com/tenderly/coreth/eth"
+	"github.com/tenderly/coreth/plugin/evm/config"
 	"github.com/ava-labs/libevm/core/types"
 )
 

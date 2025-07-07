@@ -7,10 +7,10 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/ava-labs/coreth/params/extras"
-	"github.com/ava-labs/coreth/plugin/evm/customtypes"
-	"github.com/ava-labs/coreth/plugin/evm/upgrade/ap4"
-	"github.com/ava-labs/coreth/plugin/evm/upgrade/ap5"
+	"github.com/tenderly/coreth/params/extras"
+	"github.com/tenderly/coreth/plugin/evm/customtypes"
+	"github.com/tenderly/coreth/plugin/evm/upgrade/ap4"
+	"github.com/tenderly/coreth/plugin/evm/upgrade/ap5"
 	"github.com/ava-labs/libevm/common"
 	"github.com/ava-labs/libevm/core/types"
 )

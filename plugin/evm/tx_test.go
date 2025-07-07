@@ -13,10 +13,10 @@ import (
 
 	"github.com/ava-labs/libevm/common"
 
-	"github.com/ava-labs/coreth/params/extras"
-	"github.com/ava-labs/coreth/plugin/evm/atomic"
-	atomicvm "github.com/ava-labs/coreth/plugin/evm/atomic/vm"
-	"github.com/ava-labs/coreth/utils"
+	"github.com/tenderly/coreth/params/extras"
+	"github.com/tenderly/coreth/plugin/evm/atomic"
+	atomicvm "github.com/tenderly/coreth/plugin/evm/atomic/vm"
+	"github.com/tenderly/coreth/utils"
 
 	avalancheatomic "github.com/ava-labs/avalanchego/chains/atomic"
 	"github.com/ava-labs/avalanchego/ids"

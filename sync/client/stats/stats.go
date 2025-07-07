@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ava-labs/coreth/plugin/evm/message"
+	"github.com/tenderly/coreth/plugin/evm/message"
 	"github.com/ava-labs/libevm/metrics"
 )
 

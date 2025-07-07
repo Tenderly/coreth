@@ -11,18 +11,18 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/timer/mockable"
 	"github.com/ava-labs/avalanchego/vms/components/gas"
-	"github.com/ava-labs/coreth/consensus"
-	"github.com/ava-labs/coreth/consensus/misc/eip4844"
-	"github.com/ava-labs/coreth/core/state"
-	"github.com/ava-labs/coreth/params"
-	"github.com/ava-labs/coreth/params/extras"
-	"github.com/ava-labs/coreth/plugin/evm/customtypes"
-	"github.com/ava-labs/coreth/utils"
+	"github.com/tenderly/coreth/consensus"
+	"github.com/tenderly/coreth/consensus/misc/eip4844"
+	"github.com/tenderly/coreth/core/state"
+	"github.com/tenderly/coreth/params"
+	"github.com/tenderly/coreth/params/extras"
+	"github.com/tenderly/coreth/plugin/evm/customtypes"
+	"github.com/tenderly/coreth/utils"
 	"github.com/ava-labs/libevm/common"
 	"github.com/ava-labs/libevm/core/types"
 	"github.com/ava-labs/libevm/trie"
 
-	customheader "github.com/ava-labs/coreth/plugin/evm/header"
+	customheader "github.com/tenderly/coreth/plugin/evm/header"
 )
 
 var (

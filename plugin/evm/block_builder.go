@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/utils/timer"
-	"github.com/ava-labs/coreth/core"
-	"github.com/ava-labs/coreth/core/txpool"
-	"github.com/ava-labs/coreth/plugin/evm/extension"
+	"github.com/tenderly/coreth/core"
+	"github.com/tenderly/coreth/core/txpool"
+	"github.com/tenderly/coreth/plugin/evm/extension"
 	"github.com/holiman/uint256"
 
 	"github.com/ava-labs/avalanchego/snow"

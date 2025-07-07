@@ -5,9 +5,9 @@ package extstatetest
 import (
 	"testing"
 
-	"github.com/ava-labs/coreth/core/extstate"
-	"github.com/ava-labs/coreth/core/state"
-	"github.com/ava-labs/coreth/precompile/contract"
+	"github.com/tenderly/coreth/core/extstate"
+	"github.com/tenderly/coreth/core/state"
+	"github.com/tenderly/coreth/precompile/contract"
 	"github.com/ava-labs/libevm/common"
 	"github.com/ava-labs/libevm/core/rawdb"
 	"github.com/stretchr/testify/require"

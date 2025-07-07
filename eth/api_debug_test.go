@@ -34,7 +34,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ava-labs/coreth/core/state"
+	"github.com/tenderly/coreth/core/state"
 	"github.com/ava-labs/libevm/common"
 	"github.com/ava-labs/libevm/core/rawdb"
 	"github.com/ava-labs/libevm/core/types"

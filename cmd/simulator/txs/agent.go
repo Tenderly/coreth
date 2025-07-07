@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ava-labs/coreth/cmd/simulator/metrics"
+	"github.com/tenderly/coreth/cmd/simulator/metrics"
 	"github.com/ava-labs/libevm/common"
 	"github.com/ava-labs/libevm/log"
 )

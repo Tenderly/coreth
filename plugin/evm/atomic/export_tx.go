@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ava-labs/coreth/params/extras"
-	"github.com/ava-labs/coreth/plugin/evm/upgrade/ap0"
-	"github.com/ava-labs/coreth/plugin/evm/upgrade/ap5"
+	"github.com/tenderly/coreth/params/extras"
+	"github.com/tenderly/coreth/plugin/evm/upgrade/ap0"
+	"github.com/tenderly/coreth/plugin/evm/upgrade/ap5"
 	"github.com/holiman/uint256"
 
 	"github.com/ava-labs/avalanchego/chains/atomic"

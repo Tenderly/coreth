@@ -9,7 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/api"
 	"github.com/ava-labs/avalanchego/utils/profiler"
-	"github.com/ava-labs/coreth/plugin/evm/client"
+	"github.com/tenderly/coreth/plugin/evm/client"
 	"github.com/ava-labs/libevm/log"
 )
 

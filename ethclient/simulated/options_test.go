@@ -25,9 +25,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ava-labs/coreth/core"
-	"github.com/ava-labs/coreth/params"
-	"github.com/ava-labs/coreth/plugin/evm/upgrade/acp176"
+	"github.com/tenderly/coreth/core"
+	"github.com/tenderly/coreth/params"
+	"github.com/tenderly/coreth/plugin/evm/upgrade/acp176"
 	ethereum "github.com/ava-labs/libevm"
 	"github.com/ava-labs/libevm/core/types"
 )

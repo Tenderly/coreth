@@ -15,7 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls/signer/localsigner"
 	avalancheWarp "github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp/payload"
-	"github.com/ava-labs/coreth/warp/warptest"
+	"github.com/tenderly/coreth/warp/warptest"
 	"github.com/stretchr/testify/require"
 )
 

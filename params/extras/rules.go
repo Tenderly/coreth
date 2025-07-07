@@ -4,7 +4,7 @@
 package extras
 
 import (
-	"github.com/ava-labs/coreth/precompile/precompileconfig"
+	"github.com/tenderly/coreth/precompile/precompileconfig"
 	"github.com/ava-labs/libevm/common"
 )
 

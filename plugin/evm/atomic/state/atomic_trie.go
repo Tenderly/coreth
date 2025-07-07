@@ -13,10 +13,10 @@ import (
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
-	"github.com/ava-labs/coreth/plugin/evm/atomic"
-	"github.com/ava-labs/coreth/plugin/evm/database"
+	"github.com/tenderly/coreth/plugin/evm/atomic"
+	"github.com/tenderly/coreth/plugin/evm/database"
 
-	"github.com/ava-labs/coreth/triedb/hashdb"
+	"github.com/tenderly/coreth/triedb/hashdb"
 	"github.com/ava-labs/libevm/common"
 	"github.com/ava-labs/libevm/core/rawdb"
 	"github.com/ava-labs/libevm/core/types"

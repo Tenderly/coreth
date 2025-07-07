@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/coreth/rpc"
+	"github.com/tenderly/coreth/rpc"
 	"github.com/ava-labs/libevm/common/hexutil"
 )
 

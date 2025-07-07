@@ -8,7 +8,7 @@ import (
 	"reflect"
 
 	"github.com/ava-labs/avalanchego/upgrade"
-	"github.com/ava-labs/coreth/utils"
+	"github.com/tenderly/coreth/utils"
 	ethparams "github.com/ava-labs/libevm/params"
 )
 

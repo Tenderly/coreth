@@ -8,7 +8,7 @@ import (
 	"errors"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/coreth/network"
+	"github.com/tenderly/coreth/network"
 
 	"github.com/ava-labs/avalanchego/version"
 )

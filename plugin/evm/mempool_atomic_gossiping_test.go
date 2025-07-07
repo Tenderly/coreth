@@ -9,9 +9,9 @@ import (
 
 	"github.com/ava-labs/avalanchego/upgrade/upgradetest"
 	"github.com/ava-labs/avalanchego/vms/components/chain"
-	"github.com/ava-labs/coreth/plugin/evm/atomic"
-	atomictxpool "github.com/ava-labs/coreth/plugin/evm/atomic/txpool"
-	"github.com/ava-labs/coreth/plugin/evm/extension"
+	"github.com/tenderly/coreth/plugin/evm/atomic"
+	atomictxpool "github.com/tenderly/coreth/plugin/evm/atomic/txpool"
+	"github.com/tenderly/coreth/plugin/evm/extension"
 
 	"github.com/stretchr/testify/assert"
 )

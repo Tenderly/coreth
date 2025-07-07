@@ -11,7 +11,7 @@ import (
 	"math"
 
 	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/ava-labs/coreth/utils"
+	"github.com/tenderly/coreth/utils"
 	safemath "github.com/ava-labs/libevm/common/math"
 )
 

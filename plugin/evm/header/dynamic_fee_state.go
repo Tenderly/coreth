@@ -7,9 +7,9 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/vms/components/gas"
-	"github.com/ava-labs/coreth/params/extras"
-	"github.com/ava-labs/coreth/plugin/evm/customtypes"
-	"github.com/ava-labs/coreth/plugin/evm/upgrade/acp176"
+	"github.com/tenderly/coreth/params/extras"
+	"github.com/tenderly/coreth/plugin/evm/customtypes"
+	"github.com/tenderly/coreth/plugin/evm/upgrade/acp176"
 	"github.com/ava-labs/libevm/common"
 	"github.com/ava-labs/libevm/core/types"
 )

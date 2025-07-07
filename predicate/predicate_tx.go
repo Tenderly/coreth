@@ -6,7 +6,7 @@ package predicate
 import (
 	"math/big"
 
-	"github.com/ava-labs/coreth/utils"
+	"github.com/tenderly/coreth/utils"
 	"github.com/ava-labs/libevm/common"
 	"github.com/ava-labs/libevm/core/types"
 )

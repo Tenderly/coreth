@@ -32,7 +32,7 @@ import (
 	mrand "math/rand"
 	"testing"
 
-	"github.com/ava-labs/coreth/params"
+	"github.com/tenderly/coreth/params"
 	"github.com/ava-labs/libevm/common"
 	"github.com/holiman/uint256"
 )

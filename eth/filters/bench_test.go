@@ -33,7 +33,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ava-labs/coreth/core/bloombits"
+	"github.com/tenderly/coreth/core/bloombits"
 	"github.com/ava-labs/libevm/common"
 	"github.com/ava-labs/libevm/common/bitutil"
 	"github.com/ava-labs/libevm/core/rawdb"

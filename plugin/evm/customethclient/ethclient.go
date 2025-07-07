@@ -11,9 +11,9 @@ import (
 	"github.com/ava-labs/libevm/common/hexutil"
 	"github.com/ava-labs/libevm/core/types"
 
-	"github.com/ava-labs/coreth/ethclient"
-	"github.com/ava-labs/coreth/plugin/evm/customtypes"
-	"github.com/ava-labs/coreth/rpc"
+	"github.com/tenderly/coreth/ethclient"
+	"github.com/tenderly/coreth/plugin/evm/customtypes"
+	"github.com/tenderly/coreth/rpc"
 )
 
 var _ ethclient.BlockHook = (*extBlockHook)(nil)

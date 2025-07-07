@@ -7,10 +7,10 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ava-labs/coreth/plugin/evm/atomic"
-	atomicvm "github.com/ava-labs/coreth/plugin/evm/atomic/vm"
-	"github.com/ava-labs/coreth/plugin/evm/upgrade/ap0"
-	"github.com/ava-labs/coreth/utils"
+	"github.com/tenderly/coreth/plugin/evm/atomic"
+	atomicvm "github.com/tenderly/coreth/plugin/evm/atomic/vm"
+	"github.com/tenderly/coreth/plugin/evm/upgrade/ap0"
+	"github.com/tenderly/coreth/utils"
 	"github.com/ava-labs/libevm/common"
 	"github.com/holiman/uint256"
 

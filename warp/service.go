@@ -13,8 +13,8 @@ import (
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp/payload"
-	warpprecompile "github.com/ava-labs/coreth/precompile/contracts/warp"
-	warpValidators "github.com/ava-labs/coreth/warp/validators"
+	warpprecompile "github.com/tenderly/coreth/precompile/contracts/warp"
+	warpValidators "github.com/tenderly/coreth/warp/validators"
 	"github.com/ava-labs/libevm/common/hexutil"
 	"github.com/ava-labs/libevm/log"
 )

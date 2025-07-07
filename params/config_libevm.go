@@ -6,9 +6,9 @@ package params
 import (
 	"math/big"
 
-	"github.com/ava-labs/coreth/params/extras"
-	"github.com/ava-labs/coreth/precompile/modules"
-	"github.com/ava-labs/coreth/precompile/precompileconfig"
+	"github.com/tenderly/coreth/params/extras"
+	"github.com/tenderly/coreth/precompile/modules"
+	"github.com/tenderly/coreth/precompile/precompileconfig"
 	"github.com/ava-labs/libevm/common"
 	ethparams "github.com/ava-labs/libevm/params"
 )

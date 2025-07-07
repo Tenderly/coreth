@@ -9,7 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 
-	"github.com/ava-labs/coreth/core"
+	"github.com/tenderly/coreth/core"
 
 	"github.com/ava-labs/libevm/core/types"
 	"github.com/ava-labs/libevm/log"

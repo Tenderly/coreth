@@ -5,7 +5,7 @@
 package eth
 
 import (
-	"github.com/ava-labs/coreth/core"
+	"github.com/tenderly/coreth/core"
 	"github.com/ava-labs/libevm/core/types"
 )
 

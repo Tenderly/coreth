@@ -6,7 +6,7 @@ package extras
 import (
 	"testing"
 
-	"github.com/ava-labs/coreth/utils"
+	"github.com/tenderly/coreth/utils"
 	"github.com/stretchr/testify/assert"
 )
 

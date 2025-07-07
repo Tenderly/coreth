@@ -6,7 +6,7 @@ package modules
 import (
 	"bytes"
 
-	"github.com/ava-labs/coreth/precompile/contract"
+	"github.com/tenderly/coreth/precompile/contract"
 	"github.com/ava-labs/libevm/common"
 )
 

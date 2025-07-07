@@ -6,9 +6,9 @@ package warp
 import (
 	"fmt"
 
-	"github.com/ava-labs/coreth/precompile/contract"
-	"github.com/ava-labs/coreth/precompile/modules"
-	"github.com/ava-labs/coreth/precompile/precompileconfig"
+	"github.com/tenderly/coreth/precompile/contract"
+	"github.com/tenderly/coreth/precompile/modules"
+	"github.com/tenderly/coreth/precompile/precompileconfig"
 
 	"github.com/ava-labs/libevm/common"
 )
