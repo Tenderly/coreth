@@ -37,24 +37,32 @@ type table struct {
 	prefix string
 }
 
-// TODO (nebojsahorvat) Custom start implementation, change with official one when they implement it
-func (t *table) DeleteRange(start, end []byte) error {
-	panic("implement me")
+// SyncKeyValue ensures that all pending writes are flushed to disk,
+// guaranteeing data durability up to the point.
+func (t *table) SyncKeyValue() error {
+	return t.db.SyncKeyValue()
 }
 
-// Stat returns a particular internal stat of the database.
-//
-//	func (t *table) Stat(property string) (string, error) {
-//		return t.db.Stat(property)
-//	}
-//
-// TODO (nebojsahorvat) Custom start implementation, change with official one when they implement it
-func (t *table) Stat() (string, error) {
-	s, err := t.db.Stat()
-	if err != nil {
-		return "", err
+// SyncAncient is a noop passthrough that just forwards the request to the underlying
+// database.
+func (t *table) SyncAncient() error {
+	return t.db.SyncAncient()
+}
+
+// DeleteRange deletes all of the keys (and values) in the range [start,end)
+// (inclusive on start, exclusive on end).
+func (t *table) DeleteRange(start, end []byte) error {
+	// The nilness will be lost by adding the prefix, explicitly converting it
+	// to a special flag representing the end of key range.
+	if end == nil {
+		end = ethdb.MaximumKey
 	}
-	return s, nil
+	return t.db.DeleteRange(append([]byte(t.prefix), start...), append([]byte(t.prefix), end...))
+}
+
+// Stat returns the statistic data of the database.
+func (t *table) Stat() (string, error) {
+	return t.db.Stat()
 }
 
 // NewTable returns a database object that prefixes all keys with a given string.
@@ -78,12 +86,6 @@ func (t *table) Has(key []byte) (bool, error) {
 // Get retrieves the given prefixed key if it's present in the database.
 func (t *table) Get(key []byte) ([]byte, error) {
 	return t.db.Get(append([]byte(t.prefix), key...))
-}
-
-// HasAncient is a noop passthrough that just forwards the request to the underlying
-// database.
-func (t *table) HasAncient(kind string, number uint64) (bool, error) {
-	return t.db.HasAncient(kind, number)
 }
 
 // Ancient is a noop passthrough that just forwards the request to the underlying
@@ -136,19 +138,6 @@ func (t *table) TruncateHead(items uint64) (uint64, error) {
 func (t *table) TruncateTail(items uint64) (uint64, error) {
 	return t.db.TruncateTail(items)
 }
-
-// Sync is a noop passthrough that just forwards the request to the underlying
-// database.
-func (t *table) Sync() error {
-	return t.db.Sync()
-}
-
-// TODO (nebojsahorvat) Check why this is this no longer part of API
-//// MigrateTable processes the entries in a given table in sequence
-//// converting them to a new format if they're of an old format.
-//func (t *table) MigrateTable(kind string, convert convertLegacyFn) error {
-//	return t.db.MigrateTable(kind, convert)
-//}
 
 // AncientDatadir returns the ancient datadir of the underlying database.
 func (t *table) AncientDatadir() (string, error) {
@@ -226,19 +215,21 @@ func (t *table) NewBatchWithSize(size int) ethdb.Batch {
 	return &tableBatch{t.db.NewBatchWithSize(size), t.prefix}
 }
 
-// TODO (nebojsahorvat) Check why this is this no longer part of API
-// NewSnapshot creates a database snapshot based on the current state.
-// The created snapshot will not be affected by all following mutations
-// happened on the database.
-//func (t *table) NewSnapshot() (ethdb.Snapshot, error) {
-//	return t.db.NewSnapshot()
-//}
-
 // tableBatch is a wrapper around a database batch that prefixes each key access
 // with a pre-configured string.
 type tableBatch struct {
 	batch  ethdb.Batch
 	prefix string
+}
+
+// DeleteRange removes all keys in the range [start, end) from the batch for later committing.
+func (b *tableBatch) DeleteRange(start, end []byte) error {
+	// The nilness will be lost by adding the prefix, explicitly converting it
+	// to a special flag representing the end of key range.
+	if end == nil {
+		end = ethdb.MaximumKey
+	}
+	return b.batch.DeleteRange(append([]byte(b.prefix), start...), append([]byte(b.prefix), end...))
 }
 
 // Put inserts the given value into the batch for later committing.
