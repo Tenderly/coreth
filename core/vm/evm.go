@@ -74,6 +74,8 @@ type (
 func (evm *EVM) precompile(addr common.Address) (contract.StatefulPrecompiledContract, bool) {
 	var precompiles map[common.Address]contract.StatefulPrecompiledContract
 	switch {
+	case evm.chainRules.IsGranite:
+		precompiles = PrecompiledContractsGranite
 	case evm.chainRules.IsCancun:
 		precompiles = PrecompiledContractsCancun
 	case evm.chainRules.IsBanff:
@@ -630,6 +632,10 @@ func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 
 // GetChainConfig implements AccessibleState
 func (evm *EVM) GetChainConfig() precompileconfig.ChainConfig { return evm.chainConfig }
+
+func (evm *EVM) GetRules() precompileconfig.Rules {
+	return evm.chainConfig.Rules(evm.GetBlockContext().Number(), evm.GetBlockContext().Timestamp())
+}
 
 func (evm *EVM) NativeAssetCall(caller common.Address, input []byte, suppliedGas uint64, gasCost uint64, readOnly bool) (ret []byte, remainingGas uint64, err error) {
 	if suppliedGas < gasCost {

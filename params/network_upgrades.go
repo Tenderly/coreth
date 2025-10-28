@@ -41,6 +41,8 @@ type NetworkUpgrades struct {
 	// Note: EIP-4844 BlobTxs are not enabled in the mempool and blocks are not
 	// allowed to contain them. For details see https://github.com/avalanche-foundation/ACPs/pull/131
 	EtnaTimestamp *uint64 `json:"etnaTimestamp,omitempty"`
+	// Granite is a placeholder for the next upgrade.
+	GraniteTimestamp *uint64 `json:"graniteTimestamp,omitempty"`
 }
 
 func (n *NetworkUpgrades) Equal(other *NetworkUpgrades) bool {
@@ -177,6 +179,12 @@ func (n *NetworkUpgrades) IsEtna(time uint64) bool {
 	return isTimestampForked(n.EtnaTimestamp, time)
 }
 
+// IsGranite returns whether [time] represents a block
+// with a timestamp after the Etna upgrade time.
+func (n *NetworkUpgrades) IsGranite(time uint64) bool {
+	return isTimestampForked(n.GraniteTimestamp, time)
+}
+
 func (n *NetworkUpgrades) Description() string {
 	var banner string
 	banner += fmt.Sprintf(" - Apricot Phase 1 Timestamp:        @%-10v (https://github.com/ava-labs/avalanchego/releases/tag/v1.3.0)\n", ptrToString(n.ApricotPhase1BlockTimestamp))
@@ -218,6 +226,12 @@ type AvalancheRules struct {
 	IsCortina                                                                           bool
 	IsDurango                                                                           bool
 	IsEtna                                                                              bool
+	IsGranite                                                                           bool
+}
+
+// IsGraniteActivated is used by the warp precompile to determine which gas costs to use.
+func (a AvalancheRules) IsGraniteActivated() bool {
+	return a.IsGranite
 }
 
 func (n *NetworkUpgrades) GetAvalancheRules(timestamp uint64) AvalancheRules {
@@ -234,5 +248,6 @@ func (n *NetworkUpgrades) GetAvalancheRules(timestamp uint64) AvalancheRules {
 		IsCortina:           n.IsCortina(timestamp),
 		IsDurango:           n.IsDurango(timestamp),
 		IsEtna:              n.IsEtna(timestamp),
+		IsGranite:           n.IsEtna(timestamp),
 	}
 }

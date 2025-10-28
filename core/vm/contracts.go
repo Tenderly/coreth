@@ -31,9 +31,11 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	math2 "github.com/ava-labs/coreth/common/math"
 	"math"
 	"math/big"
+
+	math2 "github.com/ava-labs/coreth/common/math"
+	"github.com/ethereum/go-ethereum/crypto/secp256r1"
 
 	"github.com/ava-labs/coreth/params"
 	"github.com/ava-labs/coreth/precompile/contract"
@@ -48,6 +50,9 @@ import (
 	"github.com/tenderly/bls12381"
 	"golang.org/x/crypto/ripemd160"
 )
+
+// P256VerifyAddress is the address of the p256 signature verification precompile
+var P256VerifyAddress = common.BytesToAddress([]byte{0x1, 0x00})
 
 // PrecompiledContract is the basic interface for native Go contracts. The implementation
 // requires a deterministic gas count based on the input size of the Run method of the
@@ -161,6 +166,22 @@ var PrecompiledContractsBanff = map[common.Address]contract.StatefulPrecompiledC
 	NativeAssetCallAddr:              &deprecatedContract{},
 }
 
+var PrecompiledContractsGranite = map[common.Address]contract.StatefulPrecompiledContract{
+	common.BytesToAddress([]byte{1}): newWrappedPrecompiledContract(&ecrecover{}),
+	common.BytesToAddress([]byte{2}): newWrappedPrecompiledContract(&sha256hash{}),
+	common.BytesToAddress([]byte{3}): newWrappedPrecompiledContract(&ripemd160hash{}),
+	common.BytesToAddress([]byte{4}): newWrappedPrecompiledContract(&dataCopy{}),
+	common.BytesToAddress([]byte{5}): newWrappedPrecompiledContract(&bigModExp{eip2565: true}),
+	common.BytesToAddress([]byte{6}): newWrappedPrecompiledContract(&bn256AddIstanbul{}),
+	common.BytesToAddress([]byte{7}): newWrappedPrecompiledContract(&bn256ScalarMulIstanbul{}),
+	common.BytesToAddress([]byte{8}): newWrappedPrecompiledContract(&bn256PairingIstanbul{}),
+	common.BytesToAddress([]byte{9}): newWrappedPrecompiledContract(&blake2F{}),
+	genesisContractAddr:              &deprecatedContract{},
+	NativeAssetBalanceAddr:           &deprecatedContract{},
+	NativeAssetCallAddr:              &deprecatedContract{},
+	P256VerifyAddress:                newWrappedPrecompiledContract(&p256Verify{}),
+}
+
 // PrecompiledContractsCancun contains the default set of pre-compiled Ethereum
 // contracts used in the Cancun release.
 var PrecompiledContractsCancun = map[common.Address]contract.StatefulPrecompiledContract{
@@ -194,6 +215,7 @@ var PrecompiledContractsBLS = map[common.Address]contract.StatefulPrecompiledCon
 }
 
 var (
+	PrecompiledAddressesGranite          []common.Address
 	PrecompiledAddressesCancun           []common.Address
 	PrecompiledAddressesBanff            []common.Address
 	PrecompiledAddressesApricotPhase6    []common.Address
@@ -231,6 +253,9 @@ func init() {
 	for k := range PrecompiledContractsCancun {
 		PrecompiledAddressesCancun = append(PrecompiledAddressesCancun, k)
 	}
+	for k := range PrecompiledContractsGranite {
+		PrecompiledAddressesGranite = append(PrecompiledAddressesGranite, k)
+	}
 	for k := range PrecompiledContractsBLS {
 		PrecompiledAddressesBLS = append(PrecompiledAddressesBLS, k)
 	}
@@ -263,6 +288,8 @@ func init() {
 // ActivePrecompiles returns the precompiles enabled with the current configuration.
 func ActivePrecompiles(rules params.Rules) []common.Address {
 	switch {
+	case rules.IsGranite:
+		return PrecompiledAddressesGranite
 	case rules.IsCancun:
 		return PrecompiledAddressesCancun
 	case rules.IsBanff:
@@ -1249,4 +1276,32 @@ func kZGToVersionedHash(kzg kzg4844.Commitment) common.Hash {
 	h[0] = blobCommitmentVersionKZG
 
 	return h
+}
+
+// P256VERIFY (secp256r1 signature verification)
+// implemented as a native contract
+type p256Verify struct{}
+
+// RequiredGas returns the gas required to execute the precompiled contract
+func (c *p256Verify) RequiredGas(input []byte) uint64 {
+	return params.P256VerifyGas
+}
+
+// Run executes the precompiled contract with given 160 bytes of param, returning the output and the used gas
+func (c *p256Verify) Run(input []byte) ([]byte, error) {
+	const p256VerifyInputLength = 160
+	if len(input) != p256VerifyInputLength {
+		return nil, nil
+	}
+
+	// Extract hash, r, s, x, y from the input.
+	hash := input[0:32]
+	r, s := new(big.Int).SetBytes(input[32:64]), new(big.Int).SetBytes(input[64:96])
+	x, y := new(big.Int).SetBytes(input[96:128]), new(big.Int).SetBytes(input[128:160])
+
+	// Verify the signature.
+	if secp256r1.Verify(hash, r, s, x, y) {
+		return true32Byte, nil
+	}
+	return nil, nil
 }

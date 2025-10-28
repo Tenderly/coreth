@@ -51,6 +51,7 @@ type AccessibleState interface {
 	GetBlockContext() BlockContext
 	GetSnowContext() *snow.Context
 	GetChainConfig() precompileconfig.ChainConfig
+	GetRules() precompileconfig.Rules
 	NativeAssetCall(caller common.Address, input []byte, suppliedGas uint64, gasCost uint64, readOnly bool) (ret []byte, remainingGas uint64, err error)
 }
 

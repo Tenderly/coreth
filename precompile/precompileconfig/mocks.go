@@ -41,7 +41,7 @@ func (m *MockPredicater) EXPECT() *MockPredicaterMockRecorder {
 }
 
 // PredicateGas mocks base method.
-func (m *MockPredicater) PredicateGas(predicateBytes []byte) (uint64, error) {
+func (m *MockPredicater) PredicateGas(predicateBytes []byte, rules Rules) (uint64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PredicateGas", predicateBytes)
 	ret0, _ := ret[0].(uint64)

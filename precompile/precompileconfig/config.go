@@ -47,7 +47,7 @@ type PredicateContext struct {
 // The bitset is stored in the block, so that historical blocks can be re-verified
 // without calling VerifyPredicate.
 type Predicater interface {
-	PredicateGas(predicateBytes []byte) (uint64, error)
+	PredicateGas(predicateBytes []byte, rules Rules) (uint64, error)
 	VerifyPredicate(predicateContext *PredicateContext, predicateBytes []byte) error
 }
 
@@ -76,4 +76,9 @@ type Accepter interface {
 type ChainConfig interface {
 	// IsDurango returns true if the time is after Durango.
 	IsDurango(time uint64) bool
+}
+
+// Rules defines the interface that provides information about the current rules of the chain.
+type Rules interface {
+	IsGraniteActivated() bool
 }
