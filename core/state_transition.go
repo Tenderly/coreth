@@ -28,9 +28,10 @@ package core
 
 import (
 	"fmt"
-	math2 "github.com/ava-labs/coreth/common/math"
 	"math"
 	"math/big"
+
+	math2 "github.com/ava-labs/coreth/common/math"
 
 	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/coreth/core/vm"
@@ -160,7 +161,7 @@ func accessListGas(rules params.Rules, accessList types.AccessList) (uint64, err
 			}
 			gas = totalGas
 		} else {
-			predicateGas, err := predicaterContract.PredicateGas(utils.HashSliceToBytes(accessTuple.StorageKeys), nil)
+			predicateGas, err := predicaterContract.PredicateGas(utils.HashSliceToBytes(accessTuple.StorageKeys), rules)
 			if err != nil {
 				return 0, err
 			}
