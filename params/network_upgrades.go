@@ -248,6 +248,6 @@ func (n *NetworkUpgrades) GetAvalancheRules(timestamp uint64) AvalancheRules {
 		IsCortina:           n.IsCortina(timestamp),
 		IsDurango:           n.IsDurango(timestamp),
 		IsEtna:              n.IsEtna(timestamp),
-		IsGranite:           n.IsEtna(timestamp),
+		IsGranite:           n.IsGranite(timestamp),
 	}
 }
