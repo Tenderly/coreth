@@ -17,6 +17,14 @@ import (
 // append/remove padding.
 var EndByte = byte(0xff)
 
+const delimiter = 0xff
+
+var (
+	errMissingDelimiter = fmt.Errorf("no delimiter found")
+	errExcessPadding    = fmt.Errorf("predicate included excess padding")
+	errWrongDelimiter   = fmt.Errorf("wrong delimiter")
+)
+
 var (
 	ErrInvalidAllZeroBytes = fmt.Errorf("predicate specified invalid all zero bytes")
 	ErrInvalidPadding      = fmt.Errorf("predicate specified invalid padding")
@@ -61,4 +69,30 @@ func GetPredicateResultBytes(extraData []byte) ([]byte, bool) {
 		return nil, false
 	}
 	return extraData[params.DynamicFeeExtraDataSize:], true
+}
+
+// UnpackPredicateHashes converts the chunked predicate into the original message.
+//
+// Returns an error if it finds an incorrect encoding.
+func UnpackPredicateHashes(p []common.Hash) ([]byte, error) {
+	padded := make([]byte, common.HashLength*len(p))
+	for i, chunk := range p {
+		copy(padded[common.HashLength*i:], chunk[:])
+	}
+	trimmed := common.TrimRightZeroes(padded)
+	if len(trimmed) == 0 {
+		return nil, fmt.Errorf("%w: length (%d)", errMissingDelimiter, len(p))
+	}
+
+	expectedLen := (len(trimmed) + common.HashLength - 1) / common.HashLength
+	if expectedLen != len(p) {
+		return nil, fmt.Errorf("%w: got length (%d), expected length (%d)", errExcessPadding, len(p), expectedLen)
+	}
+
+	delimiterIndex := len(trimmed) - 1
+	if trimmed[delimiterIndex] != delimiter {
+		return nil, errWrongDelimiter
+	}
+
+	return trimmed[:delimiterIndex], nil
 }

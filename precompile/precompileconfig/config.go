@@ -47,7 +47,7 @@ type PredicateContext struct {
 // The bitset is stored in the block, so that historical blocks can be re-verified
 // without calling VerifyPredicate.
 type Predicater interface {
-	PredicateGas(predicateBytes []byte, rules Rules) (uint64, error)
+	PredicateGas(pred []common.Hash, rules Rules) (uint64, error)
 	VerifyPredicate(predicateContext *PredicateContext, predicateBytes []byte) error
 }
 

@@ -36,7 +36,6 @@ import (
 	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/coreth/core/vm"
 	"github.com/ava-labs/coreth/params"
-	"github.com/ava-labs/coreth/utils"
 	"github.com/ava-labs/coreth/vmerrs"
 	"github.com/ethereum/go-ethereum/common"
 	cmath "github.com/ethereum/go-ethereum/common/math"
@@ -161,7 +160,7 @@ func accessListGas(rules params.Rules, accessList types.AccessList) (uint64, err
 			}
 			gas = totalGas
 		} else {
-			predicateGas, err := predicaterContract.PredicateGas(utils.HashSliceToBytes(accessTuple.StorageKeys), rules)
+			predicateGas, err := predicaterContract.PredicateGas(accessTuple.StorageKeys, rules)
 			if err != nil {
 				return 0, err
 			}
