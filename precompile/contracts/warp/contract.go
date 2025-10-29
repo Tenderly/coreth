@@ -290,7 +290,7 @@ func UnpackSendWarpMessageOutput(output []byte) (common.Hash, error) {
 func sendWarpMessage(accessibleState contract.AccessibleState, caller common.Address, addr common.Address, input []byte, suppliedGas uint64, readOnly bool) (ret []byte, remainingGas uint64, err error) {
 	warpGasConfig := CurrentGasConfig(accessibleState.GetRules())
 
-	if remainingGas, err = contract.DeductGas(suppliedGas, warpGasConfig.PerWarpMessageByte); err != nil {
+	if remainingGas, err = contract.DeductGas(suppliedGas, warpGasConfig.SendWarpMessageBase); err != nil {
 		return nil, 0, err
 	}
 	// This gas cost includes buffer room because it is based off of the total size of the input instead of the produced payload.
