@@ -10,7 +10,6 @@ import (
 	"github.com/ava-labs/coreth/precompile/contract"
 	"github.com/ava-labs/coreth/vmerrs"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/holiman/uint256"
 )
 
@@ -110,9 +109,5 @@ func (c *nativeAssetCall) Run(accessibleState contract.AccessibleState, caller c
 type deprecatedContract struct{}
 
 func (*deprecatedContract) Run(accessibleState contract.AccessibleState, caller common.Address, addr common.Address, input []byte, suppliedGas uint64, readOnly bool) (ret []byte, remainingGas uint64, err error) {
-	if accessibleState.GetRules().IsGraniteActivated() {
-		return nil, 0, vm.ErrExecutionReverted
-	}
-
 	return nil, suppliedGas, vmerrs.ErrExecutionReverted
 }
