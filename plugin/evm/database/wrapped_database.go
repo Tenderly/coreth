@@ -33,6 +33,9 @@ func (db ethDbWrapper) DeleteRange(start, end []byte) error {
 	return ErrDeleteRangeNotSupported
 }
 
+// SyncKeyValue implements ethdb.KeyValueSyncer
+func (db ethDbWrapper) SyncKeyValue() error { return nil }
+
 // NewBatch implements ethdb.Database
 func (db ethDbWrapper) NewBatch() ethdb.Batch { return wrappedBatch{db.Database.NewBatch()} }
 
@@ -75,3 +78,9 @@ func (batch wrappedBatch) ValueSize() int { return batch.Batch.Size() }
 
 // Replay implements ethdb.Batch
 func (batch wrappedBatch) Replay(w ethdb.KeyValueWriter) error { return batch.Batch.Replay(w) }
+
+// DeleteRange implements ethdb.KeyValueRangeDeleter
+func (batch wrappedBatch) DeleteRange(start, end []byte) error { return ErrDeleteRangeNotSupported }
+
+// Close implements ethdb.Batch
+func (batch wrappedBatch) Close() {}
