@@ -13,9 +13,9 @@ import (
 	context "context"
 	reflect "reflect"
 
-	ids "github.com/ava-labs/avalanchego/ids"
-	bls "github.com/ava-labs/avalanchego/utils/crypto/bls"
-	warp "github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	ids "github.com/tenderly/avalanchego/ids"
+	bls "github.com/tenderly/avalanchego/utils/crypto/bls"
+	warp "github.com/tenderly/avalanchego/vms/platformvm/warp"
 	gomock "go.uber.org/mock/gomock"
 )
 

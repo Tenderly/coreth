@@ -6,11 +6,11 @@ package evm
 import (
 	"time"
 
-	avalanchedatabase "github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/database/prefixdb"
-	"github.com/ava-labs/avalanchego/database/versiondb"
-	"github.com/ava-labs/coreth/core/rawdb"
-	"github.com/ava-labs/coreth/plugin/evm/database"
+	avalanchedatabase "github.com/tenderly/avalanchego/database"
+	"github.com/tenderly/avalanchego/database/prefixdb"
+	"github.com/tenderly/avalanchego/database/versiondb"
+	"github.com/tenderly/coreth/core/rawdb"
+	"github.com/tenderly/coreth/plugin/evm/database"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )

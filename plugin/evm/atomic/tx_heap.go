@@ -6,7 +6,7 @@ package atomic
 import (
 	"container/heap"
 
-	"github.com/ava-labs/avalanchego/ids"
+	"github.com/tenderly/avalanchego/ids"
 )
 
 // txEntry is used to track the [gasPrice] transactions pay to be included in

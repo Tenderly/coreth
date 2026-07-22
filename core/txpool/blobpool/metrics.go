@@ -26,7 +26,7 @@
 
 package blobpool
 
-import "github.com/ava-labs/coreth/metrics"
+import "github.com/tenderly/coreth/metrics"
 
 var (
 	// datacapGauge tracks the user's configured capacity for the blob pool. It

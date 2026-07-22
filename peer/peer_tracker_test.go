@@ -6,7 +6,7 @@ package peer
 import (
 	"testing"
 
-	"github.com/ava-labs/avalanchego/ids"
+	"github.com/tenderly/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 )
 

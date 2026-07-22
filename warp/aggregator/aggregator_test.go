@@ -12,9 +12,9 @@ import (
 
 	"go.uber.org/mock/gomock"
 
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/crypto/bls"
-	avalancheWarp "github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	"github.com/tenderly/avalanchego/ids"
+	"github.com/tenderly/avalanchego/utils/crypto/bls"
+	avalancheWarp "github.com/tenderly/avalanchego/vms/platformvm/warp"
 )
 
 func newValidator(t testing.TB, weight uint64) (bls.Signer, *avalancheWarp.Validator) {

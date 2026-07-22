@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ava-labs/avalanchego/codec"
-	"github.com/ava-labs/avalanchego/codec/linearcodec"
-	"github.com/ava-labs/avalanchego/utils/units"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
+	"github.com/tenderly/avalanchego/codec"
+	"github.com/tenderly/avalanchego/codec/linearcodec"
+	"github.com/tenderly/avalanchego/utils/units"
+	"github.com/tenderly/avalanchego/utils/wrappers"
 	"github.com/ethereum/go-ethereum/common"
 )
 

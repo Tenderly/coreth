@@ -44,7 +44,7 @@ func getDependencies(packageName string) (map[string]struct{}, error) {
 // This test makes sure that this packages does not pull whole VM logic, and I removed them
 //func TestMustNotImport(t *testing.T) {
 //	withRepo := func(pkg string) string {
-//		const repo = "github.com/ava-labs/coreth"
+//		const repo = "github.com/tenderly/coreth"
 //		return fmt.Sprintf("%s/%s", repo, pkg)
 //	}
 //	mustNotImport := map[string][]string{

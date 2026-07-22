@@ -10,16 +10,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/network/p2p"
-	"github.com/ava-labs/avalanchego/proto/pb/sdk"
-	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/tenderly/avalanchego/ids"
+	"github.com/tenderly/avalanchego/network/p2p"
+	"github.com/tenderly/avalanchego/proto/pb/sdk"
+	"github.com/tenderly/avalanchego/utils/set"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"
 
-	commonEng "github.com/ava-labs/avalanchego/snow/engine/common"
+	commonEng "github.com/tenderly/avalanchego/snow/engine/common"
 
-	"github.com/ava-labs/coreth/plugin/evm/atomic"
+	"github.com/tenderly/coreth/plugin/evm/atomic"
 )
 
 // show that a txID discovered from gossip is requested to the same node only if

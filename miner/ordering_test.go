@@ -33,8 +33,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ava-labs/coreth/core/txpool"
-	"github.com/ava-labs/coreth/core/types"
+	"github.com/tenderly/coreth/core/txpool"
+	"github.com/tenderly/coreth/core/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/holiman/uint256"

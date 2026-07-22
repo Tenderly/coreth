@@ -6,13 +6,13 @@ package dummy
 import (
 	"encoding/binary"
 	"fmt"
-	math2 "github.com/ava-labs/coreth/common/math"
+	math2 "github.com/tenderly/coreth/common/math"
 	math3 "math"
 	"math/big"
 
-	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/ava-labs/coreth/core/types"
-	"github.com/ava-labs/coreth/params"
+	"github.com/tenderly/avalanchego/utils/wrappers"
+	"github.com/tenderly/coreth/core/types"
+	"github.com/tenderly/coreth/params"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 )

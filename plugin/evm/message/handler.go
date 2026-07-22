@@ -6,7 +6,7 @@ package message
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/ids"
+	"github.com/tenderly/avalanchego/ids"
 )
 
 var _ RequestHandler = NoopRequestHandler{}

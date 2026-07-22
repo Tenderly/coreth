@@ -29,12 +29,12 @@ package ethconfig
 import (
 	"time"
 
-	"github.com/ava-labs/coreth/core"
-	"github.com/ava-labs/coreth/core/txpool/blobpool"
-	"github.com/ava-labs/coreth/core/txpool/legacypool"
-	"github.com/ava-labs/coreth/eth/gasprice"
-	"github.com/ava-labs/coreth/miner"
-	"github.com/ava-labs/coreth/params"
+	"github.com/tenderly/coreth/core"
+	"github.com/tenderly/coreth/core/txpool/blobpool"
+	"github.com/tenderly/coreth/core/txpool/legacypool"
+	"github.com/tenderly/coreth/eth/gasprice"
+	"github.com/tenderly/coreth/miner"
+	"github.com/tenderly/coreth/params"
 	"github.com/ethereum/go-ethereum/common"
 )
 

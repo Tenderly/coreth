@@ -31,8 +31,8 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/ava-labs/coreth/core/types"
-	"github.com/ava-labs/coreth/metrics"
+	"github.com/tenderly/coreth/core/types"
+	"github.com/tenderly/coreth/metrics"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )

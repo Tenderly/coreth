@@ -13,12 +13,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ava-labs/coreth/params"
-	"github.com/ava-labs/coreth/plugin/evm/atomic"
+	"github.com/tenderly/coreth/params"
+	"github.com/tenderly/coreth/plugin/evm/atomic"
 
-	avalancheatomic "github.com/ava-labs/avalanchego/chains/atomic"
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow"
+	avalancheatomic "github.com/tenderly/avalanchego/chains/atomic"
+	"github.com/tenderly/avalanchego/ids"
+	"github.com/tenderly/avalanchego/snow"
 )
 
 func TestCalculateDynamicFee(t *testing.T) {

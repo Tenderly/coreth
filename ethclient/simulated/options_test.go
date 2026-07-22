@@ -22,10 +22,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ava-labs/coreth/core"
-	"github.com/ava-labs/coreth/core/types"
-	"github.com/ava-labs/coreth/interfaces"
-	"github.com/ava-labs/coreth/params"
+	"github.com/tenderly/coreth/core"
+	"github.com/tenderly/coreth/core/types"
+	"github.com/tenderly/coreth/interfaces"
+	"github.com/tenderly/coreth/params"
 )
 
 // Tests that the simulator starts with the initial gas limit in the genesis block,

@@ -29,7 +29,7 @@ package legacypool
 import (
 	"sync"
 
-	"github.com/ava-labs/coreth/core/state"
+	"github.com/tenderly/coreth/core/state"
 	"github.com/ethereum/go-ethereum/common"
 )
 

@@ -29,8 +29,8 @@ package vm
 import (
 	"math"
 
-	"github.com/ava-labs/coreth/params"
-	"github.com/ava-labs/coreth/vmerrs"
+	"github.com/tenderly/coreth/params"
+	"github.com/tenderly/coreth/vmerrs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/holiman/uint256"

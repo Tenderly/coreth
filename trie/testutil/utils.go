@@ -31,7 +31,7 @@ import (
 	"encoding/binary"
 	mrand "math/rand"
 
-	"github.com/ava-labs/coreth/trie/trienode"
+	"github.com/tenderly/coreth/trie/trienode"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )

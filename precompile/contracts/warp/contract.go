@@ -7,12 +7,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp/payload"
-	"github.com/ava-labs/coreth/accounts/abi"
-	"github.com/ava-labs/coreth/precompile/contract"
-	"github.com/ava-labs/coreth/precompile/precompileconfig"
-	"github.com/ava-labs/coreth/vmerrs"
+	"github.com/tenderly/avalanchego/vms/platformvm/warp"
+	"github.com/tenderly/avalanchego/vms/platformvm/warp/payload"
+	"github.com/tenderly/coreth/accounts/abi"
+	"github.com/tenderly/coreth/precompile/contract"
+	"github.com/tenderly/coreth/precompile/precompileconfig"
+	"github.com/tenderly/coreth/vmerrs"
 
 	_ "embed"
 

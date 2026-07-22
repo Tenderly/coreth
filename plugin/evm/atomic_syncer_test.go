@@ -12,19 +12,19 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/database/memdb"
-	"github.com/ava-labs/avalanchego/database/versiondb"
+	"github.com/tenderly/avalanchego/database"
+	"github.com/tenderly/avalanchego/database/memdb"
+	"github.com/tenderly/avalanchego/database/versiondb"
 
-	"github.com/ava-labs/coreth/core/rawdb"
-	"github.com/ava-labs/coreth/plugin/evm/config"
-	"github.com/ava-labs/coreth/plugin/evm/message"
-	syncclient "github.com/ava-labs/coreth/sync/client"
-	"github.com/ava-labs/coreth/sync/handlers"
-	handlerstats "github.com/ava-labs/coreth/sync/handlers/stats"
-	"github.com/ava-labs/coreth/sync/syncutils"
-	"github.com/ava-labs/coreth/trie"
-	"github.com/ava-labs/coreth/triedb"
+	"github.com/tenderly/coreth/core/rawdb"
+	"github.com/tenderly/coreth/plugin/evm/config"
+	"github.com/tenderly/coreth/plugin/evm/message"
+	syncclient "github.com/tenderly/coreth/sync/client"
+	"github.com/tenderly/coreth/sync/handlers"
+	handlerstats "github.com/tenderly/coreth/sync/handlers/stats"
+	"github.com/tenderly/coreth/sync/syncutils"
+	"github.com/tenderly/coreth/trie"
+	"github.com/tenderly/coreth/triedb"
 	"github.com/ethereum/go-ethereum/common"
 )
 

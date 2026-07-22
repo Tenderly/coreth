@@ -29,7 +29,7 @@ package state
 import (
 	"testing"
 
-	"github.com/ava-labs/coreth/core/rawdb"
+	"github.com/tenderly/coreth/core/rawdb"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )

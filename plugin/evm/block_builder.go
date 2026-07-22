@@ -7,15 +7,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ava-labs/avalanchego/utils/timer"
-	"github.com/ava-labs/coreth/core"
-	"github.com/ava-labs/coreth/core/txpool"
-	"github.com/ava-labs/coreth/params"
-	"github.com/ava-labs/coreth/plugin/evm/atomic"
+	"github.com/tenderly/avalanchego/utils/timer"
+	"github.com/tenderly/coreth/core"
+	"github.com/tenderly/coreth/core/txpool"
+	"github.com/tenderly/coreth/params"
+	"github.com/tenderly/coreth/plugin/evm/atomic"
 	"github.com/holiman/uint256"
 
-	"github.com/ava-labs/avalanchego/snow"
-	commonEng "github.com/ava-labs/avalanchego/snow/engine/common"
+	"github.com/tenderly/avalanchego/snow"
+	commonEng "github.com/tenderly/avalanchego/snow/engine/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 

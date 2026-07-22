@@ -30,7 +30,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	math2 "github.com/ava-labs/coreth/common/math"
+	math2 "github.com/tenderly/coreth/common/math"
 	"io"
 	"math/big"
 	"sync/atomic"

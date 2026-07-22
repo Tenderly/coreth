@@ -31,20 +31,20 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ava-labs/coreth/accounts/abi"
-	"github.com/ava-labs/coreth/consensus"
-	"github.com/ava-labs/coreth/core"
-	"github.com/ava-labs/coreth/core/rawdb"
-	"github.com/ava-labs/coreth/core/state"
-	"github.com/ava-labs/coreth/core/types"
-	"github.com/ava-labs/coreth/core/vm"
-	"github.com/ava-labs/coreth/eth/tracers"
-	"github.com/ava-labs/coreth/eth/tracers/logger"
-	"github.com/ava-labs/coreth/params"
+	"github.com/tenderly/coreth/accounts/abi"
+	"github.com/tenderly/coreth/consensus"
+	"github.com/tenderly/coreth/core"
+	"github.com/tenderly/coreth/core/rawdb"
+	"github.com/tenderly/coreth/core/state"
+	"github.com/tenderly/coreth/core/types"
+	"github.com/tenderly/coreth/core/vm"
+	"github.com/tenderly/coreth/eth/tracers"
+	"github.com/tenderly/coreth/eth/tracers/logger"
+	"github.com/tenderly/coreth/params"
 	"github.com/ethereum/go-ethereum/common"
 
 	// force-load js tracers to trigger registration
-	_ "github.com/ava-labs/coreth/eth/tracers/js"
+	_ "github.com/tenderly/coreth/eth/tracers/js"
 	"github.com/holiman/uint256"
 )
 

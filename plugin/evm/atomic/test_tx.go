@@ -7,18 +7,18 @@ import (
 	"math/big"
 	"math/rand"
 
-	"github.com/ava-labs/coreth/core/vm"
+	"github.com/tenderly/coreth/core/vm"
 
-	"github.com/ava-labs/avalanchego/codec"
-	"github.com/ava-labs/avalanchego/codec/linearcodec"
-	"github.com/ava-labs/avalanchego/utils"
+	"github.com/tenderly/avalanchego/codec"
+	"github.com/tenderly/avalanchego/codec/linearcodec"
+	"github.com/tenderly/avalanchego/utils"
 
-	avalancheatomic "github.com/ava-labs/avalanchego/chains/atomic"
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow"
-	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/ava-labs/coreth/params"
+	avalancheatomic "github.com/tenderly/avalanchego/chains/atomic"
+	"github.com/tenderly/avalanchego/ids"
+	"github.com/tenderly/avalanchego/snow"
+	"github.com/tenderly/avalanchego/utils/set"
+	"github.com/tenderly/avalanchego/utils/wrappers"
+	"github.com/tenderly/coreth/params"
 )
 
 var TestTxCodec codec.Manager

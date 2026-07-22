@@ -8,13 +8,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ava-labs/avalanchego/cache"
-	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/network/p2p/acp118"
-	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
-	avalancheWarp "github.com/ava-labs/avalanchego/vms/platformvm/warp"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp/payload"
+	"github.com/tenderly/avalanchego/cache"
+	"github.com/tenderly/avalanchego/database"
+	"github.com/tenderly/avalanchego/ids"
+	"github.com/tenderly/avalanchego/network/p2p/acp118"
+	"github.com/tenderly/avalanchego/snow/consensus/snowman"
+	avalancheWarp "github.com/tenderly/avalanchego/vms/platformvm/warp"
+	"github.com/tenderly/avalanchego/vms/platformvm/warp/payload"
 	"github.com/ethereum/go-ethereum/log"
 )
 

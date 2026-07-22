@@ -34,13 +34,13 @@ import (
 	"math"
 	"math/big"
 
-	math2 "github.com/ava-labs/coreth/common/math"
+	math2 "github.com/tenderly/coreth/common/math"
 	"github.com/ethereum/go-ethereum/crypto/secp256r1"
 
-	"github.com/ava-labs/coreth/params"
-	"github.com/ava-labs/coreth/precompile/contract"
-	"github.com/ava-labs/coreth/precompile/modules"
-	"github.com/ava-labs/coreth/vmerrs"
+	"github.com/tenderly/coreth/params"
+	"github.com/tenderly/coreth/precompile/contract"
+	"github.com/tenderly/coreth/precompile/modules"
+	"github.com/tenderly/coreth/vmerrs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/blake2b"
