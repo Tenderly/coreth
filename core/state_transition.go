@@ -501,7 +501,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	if overflow {
 		return nil, ErrGasUintOverflow
 	}
-	gasRefund := st.refundGas(rules.IsApricotPhase1)
+	gasRefund := st.refundGas(rules.IsApricotPhase1, rules.IsHelicon)
 	fee := new(uint256.Int).SetUint64(st.gasUsed())
 	fee.Mul(fee, price)
 	st.state.AddBalance(st.evm.Context.Coinbase, fee)
@@ -514,7 +514,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	}, nil
 }
 
-func (st *StateTransition) refundGas(apricotPhase1 bool) uint64 {
+func (st *StateTransition) refundGas(apricotPhase1 bool, isHelicon bool) uint64 {
 	var refund uint64
 	// Inspired by: https://gist.github.com/holiman/460f952716a74eeb9ab358bb1836d821#gistcomment-3642048
 	if !apricotPhase1 {
@@ -524,6 +524,17 @@ func (st *StateTransition) refundGas(apricotPhase1 bool) uint64 {
 			refund = st.state.GetRefund()
 		}
 		st.gasRemaining += refund
+	}
+
+	// ACP-194 (Helicon): the C-Chain charges a minimum of ceil(gasLimit/Lambda)
+	// gas per transaction to bound the cost a low-usage tx can impose on the
+	// async execution queue. Clamp gasRemaining so the charged gas (and thus the
+	// sender's refund, the block gas pool, the fee, and the receipt) reflects the
+	// floor. Applied after the refund counter so it operates on final gas used.
+	if isHelicon {
+		if minGas := minimumGasConsumption(st.initialGas); st.gasUsed() < minGas {
+			st.gasRemaining = st.initialGas - minGas
+		}
 	}
 
 	// Return ETH for remaining gas, exchanged at the original rate.
@@ -541,6 +552,16 @@ func (st *StateTransition) refundGas(apricotPhase1 bool) uint64 {
 // gasUsed returns the amount of gas used up by the state transition.
 func (st *StateTransition) gasUsed() uint64 {
 	return st.initialGas - st.gasRemaining
+}
+
+// heliconLambda is the ACP-194 denominator: once Helicon is active the C-Chain
+// charges at least ceil(gasLimit/heliconLambda) gas per transaction.
+const heliconLambda = 2
+
+// minimumGasConsumption returns the ACP-194 gas-charged floor,
+// ceil(limit/heliconLambda).
+func minimumGasConsumption(limit uint64) uint64 {
+	return (limit + heliconLambda - 1) / heliconLambda
 }
 
 // blobGasUsed returns the amount of blob gas used by the message.
